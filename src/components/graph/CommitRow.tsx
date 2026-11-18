@@ -24,6 +24,10 @@ interface CommitRowProps {
 	date: string;
 	author: string;
 	hash: string;
+	/** Passed back to `onToggle`; a commit hash, or `"*"` for Uncommitted Changes. */
+	id: string;
+	expanded: boolean;
+	onToggle: (id: string) => void;
 }
 
 const cell = "truncate px-1.5";
@@ -41,6 +45,9 @@ export const CommitRow = memo(function CommitRow({
 	date,
 	author,
 	hash,
+	id,
+	expanded,
+	onToggle,
 }: CommitRowProps) {
 	const style: CSSProperties = {
 		height: ROW_HEIGHT,
@@ -48,10 +55,22 @@ export const CommitRow = memo(function CommitRow({
 		transform: `translateY(${top}px)`,
 	};
 	return (
+		// biome-ignore lint/a11y/useSemanticElements: a grid row cannot be a <button>
 		<div
 			data-row
+			role="button"
+			tabIndex={0}
+			aria-expanded={expanded}
+			onClick={() => onToggle(id)}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					onToggle(id);
+				}
+			}}
 			className={cn(
-				"absolute inset-x-0 top-0 grid items-center hover:bg-accent",
+				"absolute inset-x-0 top-0 grid cursor-pointer items-center hover:bg-accent",
+				expanded && "bg-accent",
 				muted && "text-muted-foreground",
 			)}
 			style={style}

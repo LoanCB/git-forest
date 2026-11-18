@@ -16,6 +16,22 @@ const fr: typeof en = {
 		loadMore: "Charger plus de commits",
 		resizeColumn: "Redimensionner la colonne {{column}}",
 	},
+	details: {
+		loading: "Chargement…",
+		commit: "Commit",
+		parents: "Parents",
+		author: "Auteur",
+		committer: "Validé par",
+		files: "Fichiers ({{count}})",
+		noFiles: "Aucun fichier modifié",
+		pickFile: "Choisissez un fichier pour voir son diff",
+		loadingDiff: "Chargement du diff…",
+		emptyDiff: "Aucune modification textuelle",
+		diffTruncated:
+			"Diff tronqué : seules les {{count}} premières lignes sont affichées",
+		renamedFrom: "depuis {{path}}",
+		goToParent: "Aller au parent {{hash}}",
+	},
 };
 
 export default fr;

@@ -1,6 +1,10 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+	CommitDetailsPanel,
+	UNCOMMITTED_ID,
+} from "@/components/details/CommitDetailsPanel";
 import { ColumnResizer } from "@/components/graph/ColumnResizer";
 import { CommitRow } from "@/components/graph/CommitRow";
 import { Button } from "@/components/ui/button";
@@ -12,6 +16,9 @@ import { formatDate } from "@/lib/format";
 import { setRepoPrefs } from "@/store/prefs";
 import type { ColumnId } from "@/store/prefs.types";
 import { useRepoView } from "@/store/repoView";
+
+/** Initial guess for a details panel's height, until it is measured. */
+const PANEL_ESTIMATE = 240;
 
 const COLUMNS: ColumnId[] = [
 	"graph",
@@ -59,14 +66,74 @@ export function CommitTable() {
 	const offset = dirty ? 1 : 0;
 	const count = layout.rows.length + (hasMore ? 1 : 0);
 	const scrollRef = useRef<HTMLDivElement>(null);
+
+	// One row at a time is expanded; its details panel is a virtual item of its own.
+	// Tied to the repo so opening another one starts collapsed.
+	const [open, setOpen] = useState<{ repo: string | null; id: string } | null>(
+		null,
+	);
+	const expanded = open && open.repo === repo ? open.id : null;
+	const setExpanded = useCallback(
+		(id: string | null | ((cur: string | null) => string | null)) =>
+			setOpen((o) => {
+				const cur = o && o.repo === repo ? o.id : null;
+				const next = typeof id === "function" ? id(cur) : id;
+				return next === null ? null : { repo, id: next };
+			}),
+		[repo],
+	);
+	const expandedRow = useMemo(() => {
+		if (expanded === null) return -1;
+		if (expanded === UNCOMMITTED_ID) return dirty ? 0 : -1;
+		const i = commits.findIndex((c) => c.hash === expanded);
+		return i < 0 ? -1 : i + offset;
+	}, [expanded, commits, dirty, offset]);
+	const panelIndex = expandedRow < 0 ? -1 : expandedRow + 1;
 	const virtualizer = useVirtualizer({
-		count,
+		count: count + (panelIndex < 0 ? 0 : 1),
 		getScrollElement: () => scrollRef.current,
-		estimateSize: () => ROW_HEIGHT,
+		estimateSize: (i) => (i === panelIndex ? PANEL_ESTIMATE : ROW_HEIGHT),
+		getItemKey: (i) => {
+			if (i === panelIndex) return "panel";
+			const row = panelIndex >= 0 && i > panelIndex ? i - 1 : i;
+			if (row >= layout.rows.length) return "more";
+			return row < offset ? "uncommitted" : commits[row - offset].hash;
+		},
 		// The header shares the scroller, so the list starts below it.
 		scrollMargin: HEADER_HEIGHT,
+		// Keeps a row scrolled to the start out from under the sticky header.
+		scrollPaddingStart: HEADER_HEIGHT,
 		overscan: 20,
 	});
+
+	useEffect(() => {
+		if (expanded === null) return;
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape") setExpanded(null);
+		};
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
+	}, [expanded, setExpanded]);
+
+	const toggle = useCallback(
+		(id: string) => setExpanded((cur) => (cur === id ? null : id)),
+		[setExpanded],
+	);
+	const goToParent = useCallback(
+		async (hash: string) => {
+			const opened = useRepoView.getState().repo;
+			if (!(await useRepoView.getState().loadUntil(hash))) return;
+			const state = useRepoView.getState();
+			if (state.repo !== opened) return;
+			const i = state.commits.findIndex((c) => c.hash === hash);
+			if (i < 0) return;
+			setExpanded(hash);
+			virtualizer.scrollToIndex(i + (state.uncommitted.length > 0 ? 1 : 0), {
+				align: "start",
+			});
+		},
+		[virtualizer, setExpanded],
+	);
 
 	const saveWidth = async (column: ColumnId, width: number) => {
 		if (!repo) return;
@@ -87,7 +154,28 @@ export function CommitTable() {
 	};
 
 	const locale = i18n.language;
-	const renderRow = (index: number, top: number) => {
+	const renderRow = (virtualIndex: number, top: number) => {
+		if (virtualIndex === panelIndex && expanded !== null && repo)
+			return (
+				<div
+					key="panel"
+					ref={virtualizer.measureElement}
+					data-index={virtualIndex}
+					className="absolute inset-x-0 top-0 border-y bg-muted/40"
+					style={{ transform: `translateY(${top}px)` }}
+				>
+					<CommitDetailsPanel
+						key={`${repo}:${expanded}`}
+						repo={repo}
+						id={expanded}
+						onSelectParent={(h) => void goToParent(h)}
+					/>
+				</div>
+			);
+		const index =
+			panelIndex >= 0 && virtualIndex > panelIndex
+				? virtualIndex - 1
+				: virtualIndex;
 		if (index >= layout.rows.length)
 			return (
 				<div
@@ -121,6 +209,9 @@ export function CommitTable() {
 					date={formatDate(uncommittedAt, locale)}
 					author="*"
 					hash="*"
+					id={UNCOMMITTED_ID}
+					expanded={expanded === UNCOMMITTED_ID}
+					onToggle={toggle}
 				/>
 			);
 		const commit = commits[index - offset];
@@ -138,6 +229,9 @@ export function CommitTable() {
 				date={formatDate(commit.authorDate, locale)}
 				author={commit.authorName}
 				hash={commit.hash.slice(0, 8)}
+				id={commit.hash}
+				expanded={expanded === commit.hash}
+				onToggle={toggle}
 			/>
 		);
 	};

@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import type { Commit, FileChange, Refs } from "@/git/types";
@@ -200,4 +201,33 @@ it("saves a resized column width in the repository prefs", async () => {
 	await vi.waitFor(() =>
 		expect(useRepoView.getState().prefs.columnWidths.date).toBe(160),
 	);
+});
+
+it("expands one row at a time under the clicked commit and closes on Escape", async () => {
+	vi.mocked(invoke).mockResolvedValue({
+		hash: "f1",
+		parents: ["c1"],
+		authorName: "Loan",
+		authorEmail: "l@e.com",
+		authorDate: 0,
+		committerName: "Loan",
+		committerEmail: "l@e.com",
+		committerDate: 0,
+		message: "full message",
+		files: [],
+	});
+	setView({});
+	render(<CommitTable />);
+	fireEvent.click(rowOf("feature"));
+	expect(await screen.findByText("full message")).toBeInTheDocument();
+	// The panel sits right under its row; the rows above stay put.
+	const panel = screen.getByText("full message").closest("[data-index]");
+	expect((panel as HTMLElement).style.transform).toBe("translateY(72px)");
+	expect(rowOf("top").style.transform).toBe("translateY(0px)");
+
+	fireEvent.click(rowOf("root"));
+	expect(await screen.findAllByText("full message")).toHaveLength(1);
+	fireEvent.keyDown(document, { key: "Escape" });
+	expect(screen.queryByText("full message")).toBeNull();
+	expect(rowOf("root").style.transform).toBe("translateY(72px)");
 });

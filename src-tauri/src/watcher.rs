@@ -4,19 +4,91 @@ use crate::git::runner::run_git;
 use crate::repos::resolve_repo;
 use notify_debouncer_mini::notify::{self, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
+use std::ffi::OsStr;
+use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
 const DEBOUNCE: Duration = Duration::from_millis(300);
 
-pub type RepoWatcher = RecommendedWatcher;
+/// Dropping it stops the watch and its debounce thread.
+pub struct RepoWatcher {
+    _watcher: Arc<Mutex<RecommendedWatcher>>,
+}
 
-/// The single active watcher; replaced by `watch_repo`, dropped by `unwatch_repo`.
+/// Directories that are never watched: dependency and build output (the
+/// likeliest way to run out of inotify watches) and hidden ones, `.git` included.
+fn is_skipped_dir(name: &OsStr) -> bool {
+    let Some(name) = name.to_str() else {
+        return false;
+    };
+    name.starts_with('.')
+        || matches!(
+            name,
+            "node_modules" | "target" | "dist" | "build" | "vendor"
+        )
+}
+
+/// `root` and its subdirectories to watch (each non-recursively), skipping
+/// `is_skipped_dir` ones and not following symlinks.
+pub fn watch_dirs(root: &Path) -> Vec<PathBuf> {
+    let mut dirs = vec![];
+    let mut todo = vec![root.to_path_buf()];
+    while let Some(dir) = todo.pop() {
+        if let Ok(entries) = fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                if entry.file_type().is_ok_and(|t| t.is_dir())
+                    && !is_skipped_dir(&entry.file_name())
+                {
+                    todo.push(entry.path());
+                }
+            }
+        }
+        dirs.push(dir);
+    }
+    dirs
+}
+
+/// The active watcher, and the generation of the last `watch_repo` or
+/// `unwatch_repo` applied. Commands run on a thread pool, so they may arrive in
+/// any order: the front numbers them and a call older than the last one applied
+/// is ignored.
 #[derive(Default)]
-pub struct WatcherState(Mutex<Option<RepoWatcher>>);
+pub struct WatcherState(Mutex<Slot>);
+
+#[derive(Default)]
+struct Slot {
+    generation: u64,
+    watcher: Option<RepoWatcher>,
+}
+
+impl Slot {
+    /// Replaces the watcher with `start()`'s, unless a newer call was applied.
+    fn watch(
+        &mut self,
+        generation: u64,
+        start: impl FnOnce() -> Result<RepoWatcher, GitError>,
+    ) -> Result<(), GitError> {
+        if generation < self.generation {
+            return Ok(());
+        }
+        self.generation = generation;
+        // Drop the previous watcher first so it cannot emit for the old repository.
+        self.watcher.take();
+        self.watcher = Some(start()?);
+        Ok(())
+    }
+
+    fn unwatch(&mut self, generation: u64) {
+        if generation >= self.generation {
+            self.generation = generation;
+            self.watcher.take();
+        }
+    }
+}
 
 #[derive(Clone, Serialize)]
 struct RepoChanged {
@@ -66,36 +138,71 @@ fn resolve_dirs(repo: &Path) -> Result<(PathBuf, PathBuf), GitError> {
 ///
 /// The debounce is done here rather than by `notify-debouncer-mini`, which
 /// reports read accesses (git opening `.git/index` or a ref) as changes and
-/// would make every refresh trigger the next one.
+/// would make every refresh trigger the next one. The work tree is watched
+/// directory by directory (see `watch_dirs`), and directories created later
+/// are added as they appear.
 pub fn start(dir: &Path, on_change: impl Fn() + Send + 'static) -> Result<RepoWatcher, GitError> {
     let (workdir, git_dir) = resolve_dirs(dir)?;
-    let (tx, rx) = mpsc::channel::<()>();
+    let (tx, rx) = mpsc::channel::<Vec<PathBuf>>();
     let (w, g) = (workdir.clone(), git_dir.clone());
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         let Ok(event) = res else { return };
         if matches!(event.kind, EventKind::Access(_)) {
             return;
         }
-        if event.paths.iter().any(|p| is_relevant(p, &w, &g)) {
-            let _ = tx.send(());
+        if !event.paths.iter().any(|p| is_relevant(p, &w, &g)) {
+            return;
         }
+        let new_dirs = if matches!(event.kind, EventKind::Create(_)) {
+            event
+                .paths
+                .iter()
+                .filter(|p| p.is_dir() && is_relevant(p, &w, &g) && p.starts_with(&w))
+                .cloned()
+                .collect()
+        } else {
+            vec![]
+        };
+        let _ = tx.send(new_dirs);
     })
     .map_err(failed)?;
-    watcher
-        .watch(&workdir, RecursiveMode::Recursive)
-        .map_err(failed)?;
-    // A worktree's or a `.git` file's real git dir lies outside the tree.
-    if !git_dir.starts_with(&workdir) {
+    for d in watch_dirs(&workdir) {
         watcher
-            .watch(&git_dir, RecursiveMode::Recursive)
+            .watch(&d, RecursiveMode::NonRecursive)
             .map_err(failed)?;
     }
+    // HEAD, index and packed-refs sit in the git dir; refs/ holds the rest.
+    // A worktree's or a `.git` file's real git dir may lie outside the tree.
+    watcher
+        .watch(&git_dir, RecursiveMode::NonRecursive)
+        .map_err(failed)?;
+    watcher
+        .watch(&git_dir.join("refs"), RecursiveMode::Recursive)
+        .map_err(failed)?;
+
+    let watcher = Arc::new(Mutex::new(watcher));
+    let weak = Arc::downgrade(&watcher);
     // Ends when the watcher (and with it `tx`) is dropped.
     std::thread::spawn(move || {
-        while rx.recv().is_ok() {
+        let add_dirs = |dirs: Vec<PathBuf>| {
+            let Some(watcher) = weak.upgrade() else {
+                return;
+            };
+            let Ok(mut watcher) = watcher.lock() else {
+                return;
+            };
+            for d in dirs {
+                for d in watch_dirs(&d) {
+                    // Best effort: there is nobody to report to from here.
+                    let _ = watcher.watch(&d, RecursiveMode::NonRecursive);
+                }
+            }
+        };
+        while let Ok(dirs) = rx.recv() {
+            add_dirs(dirs);
             loop {
                 match rx.recv_timeout(DEBOUNCE) {
-                    Ok(()) => {}
+                    Ok(dirs) => add_dirs(dirs),
                     Err(RecvTimeoutError::Timeout) => break,
                     Err(RecvTimeoutError::Disconnected) => return,
                 }
@@ -103,7 +210,7 @@ pub fn start(dir: &Path, on_change: impl Fn() + Send + 'static) -> Result<RepoWa
             on_change();
         }
     });
-    Ok(watcher)
+    Ok(RepoWatcher { _watcher: watcher })
 }
 
 #[tauri::command(async)]
@@ -111,22 +218,23 @@ pub fn watch_repo(
     app: AppHandle,
     state: State<WatcherState>,
     repo: String,
+    generation: u64,
 ) -> Result<(), GitError> {
     let dir = resolve_repo(&app, &repo)?;
-    // Drop the previous watcher first so it cannot emit for the old repository.
-    state.0.lock().map_err(failed)?.take();
+    // Held while the watcher starts, so calls are applied one at a time.
+    let mut slot = state.0.lock().map_err(failed)?;
     let emitter = app.clone();
     let payload = RepoChanged { repo };
-    let watcher = start(&dir, move || {
-        let _ = emitter.emit("repo-changed", payload.clone());
-    })?;
-    *state.0.lock().map_err(failed)? = Some(watcher);
-    Ok(())
+    slot.watch(generation, || {
+        start(&dir, move || {
+            let _ = emitter.emit("repo-changed", payload.clone());
+        })
+    })
 }
 
 #[tauri::command(async)]
-pub fn unwatch_repo(state: State<WatcherState>) -> Result<(), GitError> {
-    state.0.lock().map_err(failed)?.take();
+pub fn unwatch_repo(state: State<WatcherState>, generation: u64) -> Result<(), GitError> {
+    state.0.lock().map_err(failed)?.unwatch(generation);
     Ok(())
 }
 
@@ -206,5 +314,87 @@ mod tests {
         read_commits(repo.path(), &q).unwrap();
         read_uncommitted(repo.path()).unwrap();
         assert!(quiet(&rx, Duration::from_secs(1)), "a read emitted");
+    }
+
+    #[test]
+    fn watch_dirs_skips_dependency_build_and_hidden_directories() {
+        let repo = TestRepo::new();
+        let root = repo.path();
+        for d in [
+            "src/deep",
+            "node_modules/a/b",
+            "target/debug",
+            "dist",
+            ".cache/x",
+        ] {
+            fs::create_dir_all(root.join(d)).unwrap();
+        }
+        let mut dirs: Vec<_> = watch_dirs(root)
+            .into_iter()
+            .map(|d| d.strip_prefix(root).unwrap().to_path_buf())
+            .collect();
+        dirs.sort();
+        assert_eq!(dirs, [PathBuf::new(), "src".into(), "src/deep".into()]);
+    }
+
+    #[test]
+    fn a_file_in_a_new_directory_triggers_an_event() {
+        let repo = TestRepo::new();
+        repo.commit("c1", &[("a.txt", "a")]);
+        let (_w, rx) = watch(&repo);
+        fs::create_dir_all(repo.path().join("new/sub")).unwrap();
+        assert!(
+            rx.recv_timeout(Duration::from_secs(3)).is_ok(),
+            "no dir event"
+        );
+        assert!(quiet(&rx, Duration::from_millis(600)));
+        fs::write(repo.path().join("new/sub/f.txt"), "x").unwrap();
+        assert!(
+            rx.recv_timeout(Duration::from_secs(3)).is_ok(),
+            "no file event"
+        );
+    }
+
+    #[test]
+    fn a_new_directory_under_node_modules_is_not_watched() {
+        let repo = TestRepo::new();
+        fs::create_dir_all(repo.path().join("node_modules")).unwrap();
+        let (_w, rx) = watch(&repo);
+        fs::create_dir_all(repo.path().join("node_modules/p/q")).unwrap();
+        fs::write(repo.path().join("node_modules/p/q/f.js"), "x").unwrap();
+        assert!(quiet(&rx, Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn refs_below_the_git_dir_still_trigger_events() {
+        let repo = TestRepo::new();
+        let hash = repo.commit("c1", &[("a.txt", "a")]);
+        let (_w, rx) = watch(&repo);
+        fs::create_dir_all(repo.path().join(".git/refs/heads/feat")).unwrap();
+        fs::write(
+            repo.path().join(".git/refs/heads/feat/x"),
+            format!("{hash}\n"),
+        )
+        .unwrap();
+        assert!(rx.recv_timeout(Duration::from_secs(3)).is_ok());
+        fs::write(repo.path().join(".git/HEAD"), "ref: refs/heads/feat/x\n").unwrap();
+        assert!(rx.recv_timeout(Duration::from_secs(3)).is_ok());
+    }
+
+    #[test]
+    fn a_stale_watch_or_unwatch_is_ignored() {
+        let repo = TestRepo::new();
+        let mut slot = Slot::default();
+        // The front sent watch(1), unwatch(2), watch(3); they arrive reversed.
+        slot.watch(3, || start(repo.path(), || {})).unwrap();
+        slot.unwatch(2);
+        assert!(slot.watcher.is_some(), "stale unwatch dropped the watcher");
+        slot.watch(1, || panic!("stale watch must not start"))
+            .unwrap();
+        slot.unwatch(4);
+        assert!(slot.watcher.is_none());
+        slot.watch(2, || panic!("stale watch must not start"))
+            .unwrap();
+        assert!(slot.watcher.is_none());
     }
 }

@@ -64,6 +64,11 @@ const fr: typeof en = {
 		renamedFrom: "depuis {{path}}",
 		goToParent: "Aller au parent {{hash}}",
 	},
+	watch: {
+		unavailable:
+			"Le rafraîchissement automatique est désactivé pour ce dépôt : {{message}} Utilisez Actualiser (F5).",
+		dismiss: "Fermer",
+	},
 	actions: {
 		cancel: "Annuler",
 		close: "Fermer",

@@ -4,6 +4,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useOperations } from "../store/operations";
 import { useRepoView } from "../store/repoView";
+import { useWatchNotice } from "../store/watchNotice";
 import { useRepoWatcher } from "./useRepoWatcher";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -34,13 +35,17 @@ beforeEach(() => {
 		});
 	refresh.mockReset().mockResolvedValue(undefined);
 	useOperations.setState({ running: [] });
+	useWatchNotice.setState({ message: null, dismissed: false });
 	useRepoView.setState({ repo: "/p/r", refresh });
 });
 
 it("refreshes the view on repo-changed for the current repo only", async () => {
 	renderHook(() => useRepoWatcher());
 	await vi.waitFor(() => expect(listen).toHaveBeenCalled());
-	expect(invoke).toHaveBeenCalledWith("watch_repo", { repo: "/p/r" });
+	expect(invoke).toHaveBeenCalledWith("watch_repo", {
+		repo: "/p/r",
+		generation: expect.any(Number),
+	});
 
 	emit("/p/other");
 	expect(refresh).not.toHaveBeenCalled();
@@ -63,10 +68,44 @@ it("defers the refresh while a local action is running", async () => {
 it("unwatches when the repository closes", async () => {
 	renderHook(() => useRepoWatcher());
 	await vi.waitFor(() =>
-		expect(invoke).toHaveBeenCalledWith("watch_repo", { repo: "/p/r" }),
+		expect(invoke).toHaveBeenCalledWith("watch_repo", {
+			repo: "/p/r",
+			generation: expect.any(Number),
+		}),
 	);
 	act(() => useRepoView.setState({ repo: null }));
 	await vi.waitFor(() =>
-		expect(invoke).toHaveBeenCalledWith("unwatch_repo", undefined),
+		expect(invoke).toHaveBeenCalledWith(
+			"unwatch_repo",
+			expect.objectContaining({ generation: expect.any(Number) }),
+		),
+	);
+});
+
+it("numbers watch and unwatch calls in the order they are sent", async () => {
+	const { rerender } = renderHook(() => useRepoWatcher());
+	await vi.waitFor(() =>
+		expect(invoke).toHaveBeenCalledWith("watch_repo", expect.anything()),
+	);
+	act(() => useRepoView.setState({ repo: null }));
+	await vi.waitFor(() =>
+		expect(invoke).toHaveBeenCalledWith("unwatch_repo", expect.anything()),
+	);
+	act(() => useRepoView.setState({ repo: "/p/r" }));
+	rerender();
+	await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(3));
+	const generations = vi
+		.mocked(invoke)
+		.mock.calls.map(([, args]) => (args as { generation: number }).generation);
+	expect(generations).toEqual([...generations].sort((a, b) => a - b));
+	expect(new Set(generations).size).toBe(3);
+});
+
+it("tells the user when the watcher cannot start", async () => {
+	vi.spyOn(console, "error").mockImplementation(() => {});
+	vi.mocked(invoke).mockRejectedValue({ kind: "failed", message: "ENOSPC" });
+	renderHook(() => useRepoWatcher());
+	await vi.waitFor(() =>
+		expect(useWatchNotice.getState().message).toBe("ENOSPC"),
 	);
 });

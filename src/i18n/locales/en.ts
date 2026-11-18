@@ -62,6 +62,11 @@ const en = {
 		renamedFrom: "from {{path}}",
 		goToParent: "Go to parent {{hash}}",
 	},
+	watch: {
+		unavailable:
+			"Automatic refresh is off for this repository: {{message}} Use Refresh (F5).",
+		dismiss: "Dismiss",
+	},
 	actions: {
 		cancel: "Cancel",
 		close: "Close",

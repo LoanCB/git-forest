@@ -119,6 +119,12 @@ export const deleteRemoteTag = (
 export const cancelOperation = (opId: string) =>
 	call<void>("cancel_operation", { opId });
 
+// The backend runs commands on a thread pool in no fixed order; it applies
+// only a watch/unwatch newer than the last one it saw.
+let watchGeneration = 0;
+
 /** Starts watching `repo` (replacing any previous watch); changes arrive as `repo-changed`. */
-export const watchRepo = (repo: string) => call<void>("watch_repo", { repo });
-export const unwatchRepo = () => call<void>("unwatch_repo");
+export const watchRepo = (repo: string) =>
+	call<void>("watch_repo", { repo, generation: ++watchGeneration });
+export const unwatchRepo = () =>
+	call<void>("unwatch_repo", { generation: ++watchGeneration });

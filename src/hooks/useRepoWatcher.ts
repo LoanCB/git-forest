@@ -1,8 +1,9 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
-import { unwatchRepo, watchRepo } from "../git/api";
+import { toGitError, unwatchRepo, watchRepo } from "../git/api";
 import { selectLocalBusy, useOperations } from "../store/operations";
 import { useRepoView } from "../store/repoView";
+import { useWatchNotice } from "../store/watchNotice";
 
 /**
  * Keeps the open repository watched and refreshes the view when it changes
@@ -41,7 +42,10 @@ export function useRepoWatcher() {
 				else unlisten = fn;
 			})
 			.catch((e) => console.error("Could not listen to repo changes", e));
-		watchRepo(repo).catch((e) => console.error("Could not watch the repo", e));
+		watchRepo(repo).catch((e) => {
+			console.error("Could not watch the repo", e);
+			if (!cancelled) useWatchNotice.getState().show(toGitError(e).message);
+		});
 		return () => {
 			cancelled = true;
 			unlisten?.();

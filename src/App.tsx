@@ -6,6 +6,7 @@ import { OperationBar } from "@/components/actions/OperationBar";
 import { CommitTable } from "@/components/graph/CommitTable";
 import { RepoMissing } from "@/components/layout/RepoMissing";
 import { Toolbar } from "@/components/layout/Toolbar";
+import { WatchNotice } from "@/components/layout/WatchNotice";
 import { useRepoWatcher } from "@/hooks/useRepoWatcher";
 import { useReposStore } from "@/store/repos";
 import { useRepoView } from "@/store/repoView";
@@ -49,6 +50,7 @@ function Content() {
 					{error.message}
 				</p>
 			)}
+			<WatchNotice />
 			<div className="min-h-0 flex-1">
 				<CommitTable />
 			</div>

@@ -6,11 +6,19 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use tauri::State;
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::process::Child;
 use tokio::sync::Notify;
+use tokio::task::JoinHandle;
 
 /// After Cancel, how long git gets to remove its lock files before the whole
 /// process tree is killed outright.
 const CANCEL_GRACE: Duration = Duration::from_secs(1);
+
+/// Once git has exited, how long its output is still read: a detached
+/// descendant (a hook's background job, an ssh control master) may keep the
+/// pipes open indefinitely.
+const PIPE_DRAIN: Duration = Duration::from_millis(500);
 
 /// Running network operations by op id, so the UI's Cancel button can stop
 /// them. Nothing else ever stops a running git: no timeout is applied.
@@ -68,6 +76,39 @@ impl Drop for OpGuard<'_> {
     }
 }
 
+/// Reads a pipe in the background; what was read survives an abort.
+struct Drain {
+    buf: Arc<Mutex<Vec<u8>>>,
+    task: JoinHandle<()>,
+}
+
+impl Drain {
+    fn new<R: AsyncRead + Unpin + Send + 'static>(pipe: Option<R>) -> Self {
+        let buf = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&buf);
+        let task = tokio::spawn(async move {
+            let Some(mut pipe) = pipe else { return };
+            let mut chunk = [0u8; 8192];
+            while let Ok(n @ 1..) = pipe.read(&mut chunk).await {
+                sink.lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .extend_from_slice(&chunk[..n]);
+            }
+        });
+        Self { buf, task }
+    }
+
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&self.buf.lock().unwrap_or_else(|e| e.into_inner())).into_owned()
+    }
+}
+
+impl Drop for Drain {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}
+
 /// Runs git until it exits or `op_id` is cancelled, which kills git together
 /// with its hooks, ssh and credential helpers.
 pub async fn run_cancellable(
@@ -93,36 +134,47 @@ pub async fn run_cancellable(
     }
     let mut cmd = tokio::process::Command::from(std_cmd);
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let child = cmd.spawn().map_err(spawn_error)?;
-    let pid = child.id();
-    let output = child.wait_with_output();
-    tokio::pin!(output);
+    let mut child = cmd.spawn().map_err(spawn_error)?;
+    let mut stdout = Drain::new(child.stdout.take());
+    let mut stderr = Drain::new(child.stderr.take());
 
-    tokio::select! {
-        // Polling the wait first means the cancel branch only runs while the
-        // operation is unfinished, so git's group id still belongs to it.
+    let status = tokio::select! {
         biased;
-        result = &mut output => {
-            let output = result.map_err(|e| GitError::new(GitErrorKind::Failed, e.to_string()))?;
-            if output.status.success() {
-                Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-            } else {
-                Err(GitError::new(
-                    GitErrorKind::Failed,
-                    String::from_utf8_lossy(&output.stderr).into_owned(),
-                ))
-            }
-        }
+        status = child.wait() => status.map_err(|e| GitError::new(GitErrorKind::Failed, e.to_string()))?,
         () = guard.signal.notified() => {
-            if let Some(pid) = pid {
-                kill_tree(pid, false).await;
-                if tokio::time::timeout(CANCEL_GRACE, &mut output).await.is_err() {
-                    kill_tree(pid, true).await;
-                }
-            }
-            Err(GitError::new(GitErrorKind::Cancelled, op_id))
+            terminate(&mut child, &mut stdout, &mut stderr).await;
+            return Err(GitError::new(GitErrorKind::Cancelled, op_id));
         }
+    };
+    let _ = tokio::time::timeout(PIPE_DRAIN, async {
+        let _ = (&mut stdout.task).await;
+        let _ = (&mut stderr.task).await;
+    })
+    .await;
+    if status.success() {
+        Ok(stdout.text())
+    } else {
+        Err(GitError::new(GitErrorKind::Failed, stderr.text()))
     }
+}
+
+/// Kills git's process tree. Signals are only sent while git is unreaped:
+/// until then its pid, and on unix its process group id, cannot be reused
+/// (a zombie still holds them, as does the open process handle on Windows).
+/// Nothing below polls the child, so it stays unreaped until it is dropped.
+async fn terminate(child: &mut Child, stdout: &mut Drain, stderr: &mut Drain) {
+    let Some(pid) = child.id() else { return };
+    if !matches!(child.try_wait(), Ok(None)) {
+        return;
+    }
+    kill_tree(pid, false).await;
+    // The pipes close once everything holding them has died.
+    let _ = tokio::time::timeout(CANCEL_GRACE, async {
+        let _ = (&mut stdout.task).await;
+        let _ = (&mut stderr.task).await;
+    })
+    .await;
+    kill_tree(pid, true).await;
 }
 
 /// SIGTERM first lets git delete its lock files; `force` sends SIGKILL.

@@ -383,6 +383,37 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn finished_push_does_not_wait_for_a_background_pipe_holder() {
+        use std::time::{Duration, Instant};
+
+        let ops = OpRegistry::default();
+        let (remote, local) = with_remote();
+        local.git(&["checkout", "-q", "-b", "feat"]);
+        let hash = local.commit("feat", &[("b.txt", "b")]);
+        let pid_file = local.path().join("bg.pid");
+        // The background sleep keeps git's stdout and stderr open after git exits.
+        install_pre_push(
+            &local,
+            &format!("sleep 30 &\necho $! > '{}'", pid_file.display()),
+        );
+        let start = Instant::now();
+        let result = do_push_branch(&ops, "bg", local.path(), "origin", "feat", false).await;
+        let elapsed = start.elapsed();
+        let bg: i32 = std::fs::read_to_string(&pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        // SAFETY: plain signal to the test's own background process.
+        unsafe { libc::kill(bg, libc::SIGKILL) };
+        result.unwrap();
+        assert!(elapsed < Duration::from_secs(5), "took {elapsed:?}");
+        assert_eq!(remote.git(&["rev-parse", "refs/heads/feat"]), hash);
+        assert!(ops.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn no_timeout_is_applied() {
         let ops = OpRegistry::default();
         let (remote, local) = with_remote();

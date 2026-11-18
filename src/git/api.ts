@@ -41,8 +41,6 @@ export const addRepo = (path: string) => call<RepoEntry>("add_repo", { path });
 export const removeRepo = (path: string) => call<void>("remove_repo", { path });
 export const scanRepos = (root: string) =>
 	call<string[]>("scan_repos", { root });
-export const repoExists = (path: string) =>
-	call<boolean>("repo_exists", { path });
 
 export const getRefs = (repo: string) => call<Refs>("get_refs", { repo });
 export const getCommits = (repo: string, query: LogQuery) =>

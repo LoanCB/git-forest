@@ -206,11 +206,6 @@ pub fn scan_repos(root: String) -> Result<Vec<String>, GitError> {
         .collect())
 }
 
-#[tauri::command(async)]
-pub fn repo_exists(path: String) -> bool {
-    Path::new(&path).is_dir()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

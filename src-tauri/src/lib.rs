@@ -9,7 +9,6 @@ pub mod watcher;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build());
 
@@ -27,7 +26,6 @@ pub fn run() {
             repos::add_repo,
             repos::remove_repo,
             repos::scan_repos,
-            repos::repo_exists,
             git::read::get_refs,
             git::read::get_commits,
             git::read::get_uncommitted,

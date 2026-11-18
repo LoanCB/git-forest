@@ -4,5 +4,5 @@
 	"description": "Desktop-only capability",
 	"platforms": ["macOS", "windows", "linux"],
 	"windows": ["main"],
-	"permissions": ["updater:default", "process:default"]
+	"permissions": ["process:default"]
 }

@@ -215,8 +215,6 @@ export function dispatch(
 	switch (cmd) {
 		case "list_repos":
 			return [REPO];
-		case "repo_exists":
-			return true;
 		case "get_refs":
 			return refs();
 		case "get_commits": {

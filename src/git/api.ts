@@ -59,3 +59,31 @@ export const getFileDiff = (
 ) => call<string>("get_file_diff", { repo, target, path, oldPath });
 export const resolveCommit = (repo: string, rev: string) =>
 	call<string | null>("resolve_commit", { repo, rev });
+
+export const checkoutBranch = (repo: string, name: string) =>
+	call<void>("checkout_branch", { repo, name });
+export const checkoutCommit = (repo: string, hash: string) =>
+	call<void>("checkout_commit", { repo, hash });
+export const checkoutRemoteBranch = (
+	repo: string,
+	remote: string,
+	name: string,
+) => call<void>("checkout_remote_branch", { repo, remote, name });
+export const createBranch = (
+	repo: string,
+	name: string,
+	at: string,
+	checkout: boolean,
+) => call<void>("create_branch", { repo, name, at, checkout });
+export const renameBranch = (repo: string, old: string, newName: string) =>
+	call<void>("rename_branch", { repo, old, new: newName });
+export const deleteBranch = (repo: string, name: string, force: boolean) =>
+	call<void>("delete_branch", { repo, name, force });
+export const addTag = (
+	repo: string,
+	name: string,
+	at: string,
+	message: string | null = null,
+) => call<void>("add_tag", { repo, name, at, message });
+export const deleteTag = (repo: string, name: string) =>
+	call<void>("delete_tag", { repo, name });

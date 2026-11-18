@@ -27,7 +27,15 @@ pub fn run() {
             git::read::get_uncommitted,
             git::read::get_commit_details,
             git::read::get_file_diff,
-            git::read::resolve_commit
+            git::read::resolve_commit,
+            git::actions::checkout_branch,
+            git::actions::checkout_commit,
+            git::actions::checkout_remote_branch,
+            git::actions::create_branch,
+            git::actions::rename_branch,
+            git::actions::delete_branch,
+            git::actions::add_tag,
+            git::actions::delete_tag
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

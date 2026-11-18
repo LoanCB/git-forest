@@ -24,6 +24,28 @@ const isLanguage = (v: unknown): v is Language => v === "fr" || v === "en";
 const isChannel = (v: unknown): v is UpdateChannel =>
 	v === "stable" || v === "beta";
 
+// The plugin store is async, so the theme is mirrored in localStorage to give
+// the first paint the right value. The plugin store stays the source of truth.
+const THEME_MIRROR_KEY = "theme-mode";
+
+function readThemeMirror(): ThemeMode {
+	try {
+		const stored = localStorage.getItem(THEME_MIRROR_KEY);
+		if (isTheme(stored)) return stored;
+	} catch {
+		// Storage unavailable: fall back to the default.
+	}
+	return "dark";
+}
+
+function writeThemeMirror(theme: ThemeMode) {
+	try {
+		localStorage.setItem(THEME_MIRROR_KEY, theme);
+	} catch {
+		// The mirror is only a first-paint hint.
+	}
+}
+
 // Until a choice is stored, the language follows what i18n detected.
 const detectedLanguage = (): Language =>
 	i18n.language?.startsWith("fr") ? "fr" : "en";
@@ -36,7 +58,7 @@ interface SettingsStore extends Settings {
 }
 
 export const useSettings = create<SettingsStore>((set) => ({
-	theme: "dark",
+	theme: readThemeMirror(),
 	language: detectedLanguage(),
 	updateChannel: "stable",
 
@@ -48,7 +70,10 @@ export const useSettings = create<SettingsStore>((set) => ({
 			store.get<unknown>("updateChannel"),
 		]);
 		const patch: Partial<Settings> = {};
-		if (isTheme(theme)) patch.theme = theme;
+		if (isTheme(theme)) {
+			patch.theme = theme;
+			writeThemeMirror(theme);
+		}
 		if (isLanguage(language)) {
 			patch.language = language;
 			await i18n.changeLanguage(language);
@@ -59,6 +84,7 @@ export const useSettings = create<SettingsStore>((set) => ({
 
 	async setTheme(theme) {
 		set({ theme });
+		writeThemeMirror(theme);
 		await persist("theme", theme);
 	},
 

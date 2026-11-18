@@ -16,6 +16,7 @@ import i18n from "@/i18n";
 import { useSettings } from "./settings";
 
 beforeEach(async () => {
+	localStorage.clear();
 	data.clear();
 	save.mockClear();
 	await i18n.changeLanguage("en");
@@ -70,5 +71,32 @@ describe("useSettings", () => {
 		const s = useSettings.getState();
 		expect(s.theme).toBe("dark");
 		expect(s.updateChannel).toBe("stable");
+	});
+});
+
+describe("theme mirror", () => {
+	it("setTheme mirrors the theme to localStorage", async () => {
+		await useSettings.getState().setTheme("light");
+		expect(localStorage.getItem("theme-mode")).toBe("light");
+	});
+
+	it("load refreshes the mirror from the plugin store", async () => {
+		data.set("theme", "system");
+		await useSettings.getState().load();
+		expect(localStorage.getItem("theme-mode")).toBe("system");
+	});
+
+	it("the initial theme is read synchronously from the mirror", async () => {
+		localStorage.setItem("theme-mode", "light");
+		vi.resetModules();
+		const fresh = await import("./settings");
+		expect(fresh.useSettings.getState().theme).toBe("light");
+	});
+
+	it("an invalid mirror falls back to dark", async () => {
+		localStorage.setItem("theme-mode", "neon");
+		vi.resetModules();
+		const fresh = await import("./settings");
+		expect(fresh.useSettings.getState().theme).toBe("dark");
 	});
 });

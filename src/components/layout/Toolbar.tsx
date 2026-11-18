@@ -1,6 +1,7 @@
 import { CloudDownloadIcon, RotateCwIcon, SettingsIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { SettingsDialog } from "@/components/layout/SettingsDialog";
 import { ManageReposDialog } from "@/components/repos/ManageReposDialog";
 import { RepoSelect } from "@/components/repos/RepoSelect";
 import { BranchFilter } from "@/components/toolbar/BranchFilter";
@@ -30,6 +31,7 @@ export function Toolbar() {
 	const repo = useRepoView((s) => s.repo);
 	const showRemotes = useRepoView((s) => s.prefs.showRemotes);
 	const [manageOpen, setManageOpen] = useState(false);
+	const [settingsOpen, setSettingsOpen] = useState(false);
 	const searchRef = useRef<HTMLInputElement>(null);
 	const viewError = useRepoView((s) => s.error);
 	const hasRepo = repo !== null;
@@ -106,6 +108,7 @@ export function Toolbar() {
 					size="icon-sm"
 					aria-label={t("toolbar.settings")}
 					title={t("toolbar.settings")}
+					onClick={() => setSettingsOpen(true)}
 				>
 					<SettingsIcon />
 				</Button>
@@ -121,6 +124,7 @@ export function Toolbar() {
 				</Button>
 			</div>
 			<ManageReposDialog open={manageOpen} onOpenChange={setManageOpen} />
+			<SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 		</header>
 	);
 }

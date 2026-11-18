@@ -5,8 +5,8 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
-	useState,
 } from "react";
+import { useSettings } from "@/store/settings";
 import { darkTheme } from "./themes/dark";
 import { lightTheme } from "./themes/light";
 import type { Theme, ThemeMode } from "./types";
@@ -37,25 +37,13 @@ function applyTheme(theme: Theme, dark: boolean) {
 	root.classList.toggle("dark", dark);
 }
 
-function readStoredMode(defaultMode: ThemeMode): ThemeMode {
-	const stored = localStorage.getItem("theme-mode");
-	return stored === "system" || stored === "light" || stored === "dark"
-		? stored
-		: defaultMode;
-}
-
 interface ThemeProviderProps {
 	children: ReactNode;
-	defaultMode?: ThemeMode;
 }
 
-export function ThemeProvider({
-	children,
-	defaultMode = "dark",
-}: ThemeProviderProps) {
-	const [mode, setModeState] = useState<ThemeMode>(() =>
-		readStoredMode(defaultMode),
-	);
+// The theme itself lives in the settings store; this only applies it.
+export function ThemeProvider({ children }: ThemeProviderProps) {
+	const mode = useSettings((s) => s.theme);
 
 	useEffect(() => {
 		const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -69,8 +57,10 @@ export function ThemeProvider({
 	}, [mode]);
 
 	const setMode = useCallback((newMode: ThemeMode) => {
-		localStorage.setItem("theme-mode", newMode);
-		setModeState(newMode);
+		void useSettings
+			.getState()
+			.setTheme(newMode)
+			.catch((e) => console.error("Could not save the theme", e));
 	}, []);
 
 	const value = useMemo(() => ({ mode, setMode }), [mode, setMode]);

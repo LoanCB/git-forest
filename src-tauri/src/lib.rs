@@ -2,6 +2,8 @@ pub mod git;
 pub mod repos;
 #[cfg(test)]
 pub(crate) mod test_support;
+#[cfg(desktop)]
+pub mod updater;
 pub mod watcher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -46,7 +48,11 @@ pub fn run() {
             git::network::delete_remote_tag,
             git::ops::cancel_operation,
             watcher::watch_repo,
-            watcher::unwatch_repo
+            watcher::unwatch_repo,
+            #[cfg(desktop)]
+            updater::check_update,
+            #[cfg(desktop)]
+            updater::install_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

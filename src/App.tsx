@@ -6,10 +6,13 @@ import { OperationBar } from "@/components/actions/OperationBar";
 import { CommitTable } from "@/components/graph/CommitTable";
 import { RepoMissing } from "@/components/layout/RepoMissing";
 import { Toolbar } from "@/components/layout/Toolbar";
+import { UpdateBanner } from "@/components/layout/UpdateBanner";
 import { WatchNotice } from "@/components/layout/WatchNotice";
 import { useRepoWatcher } from "@/hooks/useRepoWatcher";
+import { UpdaterContext, useUpdater } from "@/hooks/useUpdater";
 import { useReposStore } from "@/store/repos";
 import { useRepoView } from "@/store/repoView";
+import { useSettings } from "@/store/settings";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 
 function Content() {
@@ -61,14 +64,32 @@ function Content() {
 
 export default function App() {
 	useRepoWatcher();
+	const updater = useUpdater();
+	const { checkForUpdate } = updater;
+
+	// Restore the saved settings, then look for an update on the saved channel.
+	useEffect(() => {
+		useSettings
+			.getState()
+			.load()
+			.catch((e) => console.error("Could not load the settings", e))
+			.finally(
+				() =>
+					void checkForUpdate(useSettings.getState().updateChannel === "beta"),
+			);
+	}, [checkForUpdate]);
+
 	return (
-		<ThemeProvider defaultMode="dark">
-			<main className="flex h-screen flex-col">
-				<Toolbar />
-				<Content />
-				<OperationBar />
-				<GitErrorDialog />
-			</main>
+		<ThemeProvider>
+			<UpdaterContext.Provider value={updater}>
+				<main className="flex h-screen flex-col">
+					<UpdateBanner />
+					<Toolbar />
+					<Content />
+					<OperationBar />
+					<GitErrorDialog />
+				</main>
+			</UpdaterContext.Provider>
 		</ThemeProvider>
 	);
 }

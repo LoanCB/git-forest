@@ -1,5 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
 	CommitDetailsPanel,
@@ -133,17 +134,15 @@ export function CommitTable() {
 	const goToParent = useCallback(
 		async (hash: string) => {
 			const opened = useRepoView.getState().repo;
-			const previous = expanded;
-			// Expand first, so the scroll below runs against the final layout.
-			setExpanded(hash);
-			const found = await useRepoView.getState().requestScrollTo(hash);
-			if (useRepoView.getState().repo !== opened) return;
-			if (!found) {
-				setExpanded(previous);
+			// The panel opens only once the commit is found, and before the scroll
+			// runs, so the scroll sees the final layout.
+			const found = await useRepoView
+				.getState()
+				.requestScrollTo(hash, () => flushSync(() => setExpanded(hash)));
+			if (!found && useRepoView.getState().repo === opened)
 				setNotice(t("graph.commitNotInView"));
-			}
 		},
-		[expanded, setExpanded, t],
+		[setExpanded, t],
 	);
 
 	const scrollTarget = useRepoView((s) => s.scrollTarget);

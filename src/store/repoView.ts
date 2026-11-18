@@ -29,8 +29,8 @@ interface RepoViewState {
 	refresh(): Promise<void>;
 	loadMore(): Promise<void>;
 	loadUntil(hash: string): Promise<boolean>;
-	/** Loads pages until `hash` is listed, then sets `scrollTarget`. False if it is not in the view. */
-	requestScrollTo(hash: string): Promise<boolean>;
+	/** Loads pages until `hash` is listed, runs `beforeScroll`, then sets `scrollTarget`. False if it is not in the view. */
+	requestScrollTo(hash: string, beforeScroll?: () => void): Promise<boolean>;
 	clearScrollTarget(): void;
 	setBranches(branches: string[] | null): Promise<void>;
 	setShowRemotes(show: boolean): Promise<void>;
@@ -213,7 +213,7 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 			}
 		},
 
-		async requestScrollTo(hash) {
+		async requestScrollTo(hash, beforeScroll) {
 			const startToken = token;
 			// A history reload in flight would make loadUntil give up; wait for it.
 			if (get().loading)
@@ -226,6 +226,8 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 					});
 				});
 			if (token !== startToken || !(await get().loadUntil(hash))) return false;
+			// Lets the caller commit layout changes (e.g. a panel) before the scroll.
+			beforeScroll?.();
 			set({ scrollTarget: hash });
 			return true;
 		},

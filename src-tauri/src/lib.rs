@@ -2,6 +2,7 @@ pub mod git;
 pub mod repos;
 #[cfg(test)]
 pub(crate) mod test_support;
+pub mod watcher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,6 +18,7 @@ pub fn run() {
 
     builder
         .manage(git::ops::OpRegistry::default())
+        .manage(watcher::WatcherState::default())
         .invoke_handler(tauri::generate_handler![
             repos::list_repos,
             repos::add_repo,
@@ -42,7 +44,9 @@ pub fn run() {
             git::network::push_tag,
             git::network::delete_remote_branch,
             git::network::delete_remote_tag,
-            git::ops::cancel_operation
+            git::ops::cancel_operation,
+            watcher::watch_repo,
+            watcher::unwatch_repo
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

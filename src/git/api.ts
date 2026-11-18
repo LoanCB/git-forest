@@ -118,3 +118,7 @@ export const deleteRemoteTag = (
 ) => call<void>("delete_remote_tag", { opId, repo, remote, name });
 export const cancelOperation = (opId: string) =>
 	call<void>("cancel_operation", { opId });
+
+/** Starts watching `repo` (replacing any previous watch); changes arrive as `repo-changed`. */
+export const watchRepo = (repo: string) => call<void>("watch_repo", { repo });
+export const unwatchRepo = () => call<void>("unwatch_repo");

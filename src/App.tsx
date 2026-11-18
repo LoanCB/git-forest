@@ -6,6 +6,7 @@ import { OperationBar } from "@/components/actions/OperationBar";
 import { CommitTable } from "@/components/graph/CommitTable";
 import { RepoMissing } from "@/components/layout/RepoMissing";
 import { Toolbar } from "@/components/layout/Toolbar";
+import { useRepoWatcher } from "@/hooks/useRepoWatcher";
 import { useReposStore } from "@/store/repos";
 import { useRepoView } from "@/store/repoView";
 import { ThemeProvider } from "@/theme/ThemeProvider";
@@ -57,6 +58,7 @@ function Content() {
 }
 
 export default function App() {
+	useRepoWatcher();
 	return (
 		<ThemeProvider defaultMode="dark">
 			<main className="flex h-screen flex-col">

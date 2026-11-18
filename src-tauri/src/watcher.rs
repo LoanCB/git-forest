@@ -32,7 +32,8 @@ fn is_skipped_dir(name: &OsStr) -> bool {
         )
 }
 
-/// `root` and its subdirectories to watch (each non-recursively), skipping
+/// `root` and its subdirectories to watch (each non-recursively, see
+/// `PER_DIRECTORY`), skipping
 /// `is_skipped_dir` ones and not following symlinks.
 pub fn watch_dirs(root: &Path) -> Vec<PathBuf> {
     let mut dirs = vec![];
@@ -147,16 +148,33 @@ fn resolve_dirs(repo: &Path) -> Result<(PathBuf, PathBuf), GitError> {
     Ok((workdir, git_dir))
 }
 
+/// Whether the work tree is watched directory by directory. inotify (Linux)
+/// is not recursive: notify would add a watch per directory anyway, including
+/// dependency and build output, which is the likeliest way to run out of
+/// watches. FSEvents (macOS) is natively recursive and restarts its stream on
+/// every added path; on Windows a handle per directory can block renaming or
+/// removing its ancestors. Both get a single recursive watch, and
+/// `is_relevant` filters what it reports.
+const PER_DIRECTORY: bool = cfg!(target_os = "linux");
+
 /// Starts watching `dir`; `on_change` runs (on its own thread) once per burst
 /// of relevant changes, `DEBOUNCE` after the last one. Dropping the result
 /// stops the watch.
 ///
 /// The debounce is done here rather than by `notify-debouncer-mini`, which
 /// reports read accesses (git opening `.git/index` or a ref) as changes and
-/// would make every refresh trigger the next one. The work tree is watched
-/// directory by directory (see `watch_dirs`), and directories created later
-/// are added as they appear.
+/// would make every refresh trigger the next one.
 pub fn start(dir: &Path, on_change: impl Fn() + Send + 'static) -> Result<RepoWatcher, GitError> {
+    start_with(dir, PER_DIRECTORY, on_change)
+}
+
+/// `start` with an explicit strategy. Per directory, the work tree is walked
+/// (see `watch_dirs`) and directories created later are added as they appear.
+fn start_with(
+    dir: &Path,
+    per_directory: bool,
+    on_change: impl Fn() + Send + 'static,
+) -> Result<RepoWatcher, GitError> {
     let (workdir, git_dir) = resolve_dirs(dir)?;
     let (tx, rx) = mpsc::channel::<Vec<PathBuf>>();
     let (w, g) = (workdir.clone(), git_dir.clone());
@@ -168,7 +186,7 @@ pub fn start(dir: &Path, on_change: impl Fn() + Send + 'static) -> Result<RepoWa
         if !event.paths.iter().any(|p| is_relevant(p, &w, &g)) {
             return;
         }
-        let new_dirs = if matches!(event.kind, EventKind::Create(_)) {
+        let new_dirs = if per_directory && matches!(event.kind, EventKind::Create(_)) {
             event
                 .paths
                 .iter()
@@ -181,14 +199,20 @@ pub fn start(dir: &Path, on_change: impl Fn() + Send + 'static) -> Result<RepoWa
         let _ = tx.send(new_dirs);
     })
     .map_err(failed)?;
-    for d in watch_dirs(&workdir) {
-        match watcher.watch(&d, RecursiveMode::NonRecursive) {
-            Ok(()) => {}
-            // Only the root matters to everything else: a directory that is
-            // unreadable or gone since the walk just goes unwatched.
-            Err(e) if d != workdir && !matches!(e.kind, notify::ErrorKind::MaxFilesWatch) => {}
-            Err(e) => return Err(failed(e)),
+    if per_directory {
+        for d in watch_dirs(&workdir) {
+            match watcher.watch(&d, RecursiveMode::NonRecursive) {
+                Ok(()) => {}
+                // Only the root matters to everything else: a directory that is
+                // unreadable or gone since the walk just goes unwatched.
+                Err(e) if d != workdir && !matches!(e.kind, notify::ErrorKind::MaxFilesWatch) => {}
+                Err(e) => return Err(failed(e)),
+            }
         }
+    } else {
+        watcher
+            .watch(&workdir, RecursiveMode::Recursive)
+            .map_err(failed)?;
     }
     // HEAD, index and packed-refs sit in the git dir; refs/ holds the rest.
     // A worktree's or a `.git` file's real git dir may lie outside the tree.
@@ -446,5 +470,37 @@ mod tests {
         assert!(rx.recv_timeout(Duration::from_secs(3)).is_ok());
         fs::write(repo.path().join("src/dist/out.js"), "x").unwrap();
         assert!(quiet(&rx, Duration::from_secs(1)));
+    }
+
+    /// The single recursive watch used outside Linux, exercised here too.
+    #[test]
+    fn a_recursive_watch_reports_tree_changes_and_filters_the_rest() {
+        let repo = TestRepo::new();
+        let hash = repo.commit("c1", &[("a.txt", "a")]);
+        fs::create_dir_all(repo.path().join("src/deep")).unwrap();
+        fs::create_dir_all(repo.path().join("node_modules/p")).unwrap();
+        let (tx, rx) = channel();
+        let _w = start_with(repo.path(), false, move || {
+            let _ = tx.send(());
+        })
+        .expect("start");
+        fs::write(repo.path().join("node_modules/p/i.js"), "x").unwrap();
+        fs::write(repo.path().join(".git/objects/zz-ignored"), "x").unwrap();
+        assert!(quiet(&rx, Duration::from_secs(1)), "ignored change emitted");
+        fs::write(repo.path().join("src/deep/f.txt"), "x").unwrap();
+        assert!(
+            rx.recv_timeout(Duration::from_secs(3)).is_ok(),
+            "no tree event"
+        );
+        assert!(quiet(&rx, Duration::from_millis(600)));
+        fs::write(
+            repo.path().join(".git/refs/heads/other"),
+            format!("{hash}\n"),
+        )
+        .unwrap();
+        assert!(
+            rx.recv_timeout(Duration::from_secs(3)).is_ok(),
+            "no ref event"
+        );
     }
 }

@@ -1,3 +1,5 @@
+import { UNCOMMITTED_COLOR, UNCOMMITTED_STROKE } from "@/graph/constants";
+
 export const PALETTE: readonly string[] = [
 	"#0085d9",
 	"#d9008f",
@@ -12,3 +14,9 @@ export const PALETTE: readonly string[] = [
 	"#7ad900",
 	"#a0522d",
 ];
+
+/** CSS colour of a layout colour index. */
+export const laneColor = (color: number): string =>
+	color === UNCOMMITTED_COLOR
+		? UNCOMMITTED_STROKE
+		: PALETTE[color % PALETTE.length];

@@ -25,3 +25,6 @@ export interface GraphLayout {
 	rows: GraphRow[];
 	laneCount: number;
 }
+
+/** How a row's node is drawn: filled, hollow in the lane colour, or hollow grey. */
+export type NodeKind = "commit" | "head" | "uncommitted";

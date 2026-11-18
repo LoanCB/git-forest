@@ -41,4 +41,25 @@ describe("useReposStore.addMany", () => {
 			"/b",
 		]);
 	});
+
+	it("adds one path at a time", async () => {
+		let inFlight = 0;
+		let maxInFlight = 0;
+		invoke.mockImplementation(
+			async (_cmd: string, { path }: { path: string }) => {
+				inFlight++;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				await new Promise((r) => setTimeout(r, 5));
+				inFlight--;
+				return { path, name: path.slice(1) };
+			},
+		);
+		await useReposStore.getState().addMany(["/a", "/b", "/c"]);
+		expect(maxInFlight).toBe(1);
+		expect(useReposStore.getState().repos.map((r) => r.path)).toEqual([
+			"/a",
+			"/b",
+			"/c",
+		]);
+	});
 });

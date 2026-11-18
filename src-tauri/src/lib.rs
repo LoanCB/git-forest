@@ -19,6 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build());
 
     builder
+        .manage(repos::RepoListLock::default())
         .manage(git::ops::OpRegistry::default())
         .manage(watcher::WatcherState::default())
         .invoke_handler(tauri::generate_handler![

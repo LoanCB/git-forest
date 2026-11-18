@@ -3,7 +3,8 @@ use crate::git::runner::run_git;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::AppHandle;
+use std::sync::Mutex;
+use tauri::{AppHandle, State};
 use tauri_plugin_store::StoreExt;
 
 const STORE_FILE: &str = "git-forest.json";
@@ -40,6 +41,42 @@ fn save_repos(app: &AppHandle, repos: &[RepoEntry]) -> Result<(), GitError> {
     let store = app.store(STORE_FILE).map_err(store_error)?;
     store.set(REPOS_KEY, serde_json::to_value(repos).map_err(store_error)?);
     store.save().map_err(store_error)
+}
+
+/// Serializes the read-modify-write of the stored list: commands run
+/// concurrently, and two that interleave between the load and the save would
+/// drop one of the changes.
+#[derive(Default)]
+pub struct RepoListLock(Mutex<()>);
+
+impl RepoListLock {
+    /// Loads the list, applies `change` and, when it reports a change, saves
+    /// the result, all while holding the lock.
+    fn update<T>(
+        &self,
+        load: impl FnOnce() -> Result<Vec<RepoEntry>, GitError>,
+        save: impl FnOnce(&[RepoEntry]) -> Result<(), GitError>,
+        change: impl FnOnce(&mut Vec<RepoEntry>) -> (T, bool),
+    ) -> Result<T, GitError> {
+        let _guard = self.0.lock().map_err(store_error)?;
+        let mut repos = load()?;
+        let (out, changed) = change(&mut repos);
+        if changed {
+            save(&repos)?;
+        }
+        Ok(out)
+    }
+}
+
+/// Adds `entry` unless the same repository is listed; returns the listed entry
+/// and whether the list changed.
+fn insert_entry(repos: &mut Vec<RepoEntry>, entry: RepoEntry) -> (RepoEntry, bool) {
+    let wanted = normalize(&entry.path);
+    if let Some(existing) = repos.iter().find(|e| normalize(&e.path) == wanted) {
+        return (existing.clone(), false);
+    }
+    repos.push(entry.clone());
+    (entry, true)
 }
 
 /// Canonical form when the directory exists, the raw path otherwise.
@@ -105,7 +142,11 @@ pub fn list_repos(app: AppHandle) -> Result<Vec<RepoEntry>, GitError> {
 }
 
 #[tauri::command(async)]
-pub fn add_repo(app: AppHandle, path: String) -> Result<RepoEntry, GitError> {
+pub fn add_repo(
+    app: AppHandle,
+    lock: State<RepoListLock>,
+    path: String,
+) -> Result<RepoEntry, GitError> {
     let dir = Path::new(&path);
     if !dir.is_dir() {
         return Err(GitError::new(GitErrorKind::RepoNotFound, path));
@@ -125,22 +166,29 @@ pub fn add_repo(app: AppHandle, path: String) -> Result<RepoEntry, GitError> {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| top.to_string()),
     };
-    let mut repos = load_repos(&app)?;
-    let wanted = normalize(top);
-    if let Some(existing) = repos.iter().find(|e| normalize(&e.path) == wanted) {
-        return Ok(existing.clone());
-    }
-    repos.push(entry.clone());
-    save_repos(&app, &repos)?;
-    Ok(entry)
+    lock.update(
+        || load_repos(&app),
+        |repos| save_repos(&app, repos),
+        |repos| insert_entry(repos, entry),
+    )
 }
 
 #[tauri::command(async)]
-pub fn remove_repo(app: AppHandle, path: String) -> Result<(), GitError> {
+pub fn remove_repo(
+    app: AppHandle,
+    lock: State<RepoListLock>,
+    path: String,
+) -> Result<(), GitError> {
     let wanted = normalize(&path);
-    let mut repos = load_repos(&app)?;
-    repos.retain(|e| normalize(&e.path) != wanted);
-    save_repos(&app, &repos)
+    lock.update(
+        || load_repos(&app),
+        |repos| save_repos(&app, repos),
+        |repos| {
+            let before = repos.len();
+            repos.retain(|e| normalize(&e.path) != wanted);
+            ((), repos.len() != before)
+        },
+    )
 }
 
 #[tauri::command(async)]
@@ -223,5 +271,66 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let err = check_registered(&[], &tmp.path().to_string_lossy()).unwrap_err();
         assert_eq!(err.kind, GitErrorKind::NotRegistered);
+    }
+
+    #[test]
+    fn concurrent_adds_all_persist() {
+        use std::sync::Arc;
+        let lock = Arc::new(RepoListLock::default());
+        let stored = Arc::new(Mutex::new(Vec::<RepoEntry>::new()));
+        let threads: Vec<_> = (0..8)
+            .map(|i| {
+                let (lock, stored) = (lock.clone(), stored.clone());
+                std::thread::spawn(move || {
+                    let entry = RepoEntry {
+                        path: format!("/r{i}"),
+                        name: format!("r{i}"),
+                    };
+                    lock.update(
+                        || {
+                            let list = stored.lock().unwrap().clone();
+                            // Widen the window between the read and the write.
+                            std::thread::sleep(std::time::Duration::from_millis(20));
+                            Ok(list)
+                        },
+                        |list| {
+                            *stored.lock().unwrap() = list.to_vec();
+                            Ok(())
+                        },
+                        |list| insert_entry(list, entry),
+                    )
+                    .unwrap()
+                })
+            })
+            .collect();
+        for t in threads {
+            t.join().unwrap();
+        }
+        let mut paths: Vec<_> = stored
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|e| e.path.clone())
+            .collect();
+        paths.sort();
+        assert_eq!(paths, (0..8).map(|i| format!("/r{i}")).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn insert_entry_keeps_the_existing_one() {
+        let mut list = vec![RepoEntry {
+            path: "/x".into(),
+            name: "x".into(),
+        }];
+        let (got, changed) = insert_entry(
+            &mut list,
+            RepoEntry {
+                path: "/x".into(),
+                name: "other".into(),
+            },
+        );
+        assert!(!changed);
+        assert_eq!(got.name, "x");
+        assert_eq!(list.len(), 1);
     }
 }

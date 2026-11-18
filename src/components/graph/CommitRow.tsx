@@ -27,6 +27,8 @@ interface CommitRowProps {
 	/** Passed back to `onToggle`; a commit hash, or `"*"` for Uncommitted Changes. */
 	id: string;
 	expanded: boolean;
+	/** Search result state of this row. */
+	match?: "match" | "current";
 	onToggle: (id: string) => void;
 }
 
@@ -47,6 +49,7 @@ export const CommitRow = memo(function CommitRow({
 	hash,
 	id,
 	expanded,
+	match,
 	onToggle,
 }: CommitRowProps) {
 	const style: CSSProperties = {
@@ -61,6 +64,7 @@ export const CommitRow = memo(function CommitRow({
 			role="button"
 			tabIndex={0}
 			aria-expanded={expanded}
+			data-match={match}
 			onClick={() => onToggle(id)}
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") {
@@ -71,6 +75,9 @@ export const CommitRow = memo(function CommitRow({
 			className={cn(
 				"absolute inset-x-0 top-0 grid cursor-pointer items-center hover:bg-accent",
 				expanded && "bg-accent",
+				match === "match" && "bg-yellow-500/15",
+				match === "current" &&
+					"bg-yellow-500/35 ring-1 ring-yellow-500 ring-inset",
 				muted && "text-muted-foreground",
 			)}
 			style={style}

@@ -3,6 +3,37 @@ import type en from "./en";
 const fr: typeof en = {
 	repos: {
 		empty: "Ajoute un dépôt pour commencer",
+		select: "Choisir un dépôt",
+		manage: "Gérer les dépôts…",
+		missing: "Dépôt introuvable",
+		missingHelp: "Le dossier {{path}} n'existe plus ou n'est pas un dépôt git.",
+		removeFromList: "Retirer de la liste",
+		dialog: {
+			title: "Gérer les dépôts",
+			description:
+				"Les dépôts sont seulement enregistrés ici ; rien n'est jamais supprimé du disque.",
+			addFolder: "Ajouter un dossier…",
+			scanFolder: "Analyser un dossier…",
+			none: "Aucun dépôt enregistré",
+			remove: "Retirer {{name}}",
+			scanTitle: "Dépôts trouvés",
+			scanNone: "Aucun nouveau dépôt trouvé dans ce dossier",
+			addSelected: "Ajouter la sélection ({{count}})",
+			failed: "Impossible d'ajouter {{path}} : {{message}}",
+		},
+	},
+	toolbar: {
+		repo: "Dépôt :",
+		branches: "Branches :",
+		showAll: "Tout afficher",
+		branchesSelected: "{{count}} sélectionnée(s)",
+		showRemotes: "Afficher les branches distantes",
+		search: "Rechercher",
+		searchPlaceholder: "Rechercher…",
+		searchCount: "{{current}} / {{total}}",
+		fetch: "Fetch",
+		settings: "Paramètres",
+		refresh: "Rafraîchir",
 	},
 	graph: {
 		columns: {

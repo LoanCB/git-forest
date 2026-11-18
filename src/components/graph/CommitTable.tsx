@@ -16,6 +16,7 @@ import { formatDate } from "@/lib/format";
 import { setRepoPrefs } from "@/store/prefs";
 import type { ColumnId } from "@/store/prefs.types";
 import { useRepoView } from "@/store/repoView";
+import { useSearch } from "@/store/search";
 
 /** Initial guess for a details panel's height, until it is measured. */
 const PANEL_ESTIMATE = 240;
@@ -62,6 +63,10 @@ export function CommitTable() {
 		() => (uncommitted.length > 0 ? Date.now() / 1000 : 0),
 		[uncommitted],
 	);
+
+	const matches = useSearch((s) => s.matches);
+	const currentMatch = useSearch((s) => s.matches[s.index]);
+	const matchSet = useMemo(() => new Set(matches), [matches]);
 
 	const offset = dirty ? 1 : 0;
 	const count = layout.rows.length + (hasMore ? 1 : 0);
@@ -257,6 +262,13 @@ export function CommitTable() {
 				hash={commit.hash.slice(0, 8)}
 				id={commit.hash}
 				expanded={expanded === commit.hash}
+				match={
+					commit.hash === currentMatch
+						? "current"
+						: matchSet.has(commit.hash)
+							? "match"
+							: undefined
+				}
 				onToggle={toggle}
 			/>
 		);

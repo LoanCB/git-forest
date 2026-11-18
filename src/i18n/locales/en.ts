@@ -1,6 +1,38 @@
 const en = {
 	repos: {
 		empty: "Add a repository to get started",
+		select: "Select a repository",
+		manage: "Manage repositories…",
+		missing: "Repository not found",
+		missingHelp:
+			"The folder {{path}} no longer exists or is not a git repository.",
+		removeFromList: "Remove from list",
+		dialog: {
+			title: "Manage repositories",
+			description:
+				"Repositories are only registered here; nothing is ever deleted from disk.",
+			addFolder: "Add a folder…",
+			scanFolder: "Scan a folder…",
+			none: "No repository registered",
+			remove: "Remove {{name}}",
+			scanTitle: "Repositories found",
+			scanNone: "No new repository found in this folder",
+			addSelected: "Add selected ({{count}})",
+			failed: "Could not add {{path}}: {{message}}",
+		},
+	},
+	toolbar: {
+		repo: "Repo:",
+		branches: "Branches:",
+		showAll: "Show All",
+		branchesSelected: "{{count}} selected",
+		showRemotes: "Show Remote Branches",
+		search: "Search",
+		searchPlaceholder: "Search…",
+		searchCount: "{{current}} / {{total}}",
+		fetch: "Fetch",
+		settings: "Settings",
+		refresh: "Refresh",
 	},
 	graph: {
 		columns: {

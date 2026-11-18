@@ -1,4 +1,5 @@
 import { type CSSProperties, memo } from "react";
+import { CommitContextMenu } from "@/components/actions/CommitContextMenu";
 import { GraphCell } from "@/components/graph/GraphCell";
 import { RefBadges } from "@/components/graph/RefBadges";
 import { ROW_HEIGHT } from "@/graph/constants";
@@ -57,7 +58,7 @@ export const CommitRow = memo(function CommitRow({
 		gridTemplateColumns: columns,
 		transform: `translateY(${top}px)`,
 	};
-	return (
+	const row = (
 		// biome-ignore lint/a11y/useSemanticElements: a grid row cannot be a <button>
 		<div
 			data-row
@@ -95,5 +96,11 @@ export const CommitRow = memo(function CommitRow({
 			<div className={cell}>{author}</div>
 			<div className={cell}>{hash}</div>
 		</div>
+	);
+	// Uncommitted Changes is not a commit: nothing to act on.
+	return node === "uncommitted" ? (
+		row
+	) : (
+		<CommitContextMenu hash={id}>{row}</CommitContextMenu>
 	);
 });

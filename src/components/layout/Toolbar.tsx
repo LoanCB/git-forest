@@ -7,7 +7,23 @@ import { BranchFilter } from "@/components/toolbar/BranchFilter";
 import { SearchBox } from "@/components/toolbar/SearchBox";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { fetch as gitFetch } from "@/git/api";
+import { useOperations } from "@/store/operations";
 import { useRepoView } from "@/store/repoView";
+
+function runFetch(prune: boolean, label: string) {
+	const repo = useRepoView.getState().repo;
+	if (!repo) return;
+	void useOperations
+		.getState()
+		.runNetwork(label, (opId) => gitFetch(opId, repo, prune));
+}
 
 export function Toolbar() {
 	const { t } = useTranslation();
@@ -57,15 +73,28 @@ export function Toolbar() {
 			</label>
 			<div className="ml-auto flex items-center gap-1">
 				<SearchBox inputRef={searchRef} />
-				<Button
-					variant="ghost"
-					size="icon-sm"
-					aria-label={t("toolbar.fetch")}
-					title={t("toolbar.fetch")}
-					disabled={!hasRepo}
-				>
-					<CloudDownloadIcon />
-				</Button>
+				<ContextMenu>
+					<ContextMenuTrigger render={<span className="inline-flex" />}>
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							aria-label={t("toolbar.fetch")}
+							title={t("toolbar.fetch")}
+							disabled={!hasRepo}
+							onClick={() => runFetch(false, t("actions.label.fetch"))}
+						>
+							<CloudDownloadIcon />
+						</Button>
+					</ContextMenuTrigger>
+					<ContextMenuContent>
+						<ContextMenuItem
+							disabled={!hasRepo}
+							onClick={() => runFetch(true, t("actions.label.fetchPrune"))}
+						>
+							{t("actions.fetchAndPrune")}
+						</ContextMenuItem>
+					</ContextMenuContent>
+				</ContextMenu>
 				<Button
 					variant="ghost"
 					size="icon-sm"

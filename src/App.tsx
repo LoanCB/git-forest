@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ActionDialogs } from "@/components/actions/ActionDialogs";
+import { OperationBar } from "@/components/actions/OperationBar";
 import { CommitTable } from "@/components/graph/CommitTable";
 import { RepoMissing } from "@/components/layout/RepoMissing";
 import { Toolbar } from "@/components/layout/Toolbar";
@@ -48,6 +50,8 @@ function Content() {
 			<div className="min-h-0 flex-1">
 				<CommitTable />
 			</div>
+			<OperationBar />
+			<ActionDialogs />
 		</div>
 	);
 }

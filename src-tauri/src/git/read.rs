@@ -22,13 +22,11 @@ fn reject_option_like(value: &str) -> Result<(), GitError> {
     }
 }
 
-/// `Failed` (non-zero exit) becomes `None`; other errors propagate.
+/// Runs a `-q` git query where exit 1 means "no such thing" (`None`). Any
+/// other failure, such as 128 for a broken or missing repository, is an error.
 fn run_git_opt(repo: &Path, args: &[&str]) -> Result<Option<String>, GitError> {
-    match run_git(repo, args) {
-        Ok(out) => Ok(Some(out)),
-        Err(e) if e.kind == GitErrorKind::Failed => Ok(None),
-        Err(e) => Err(e),
-    }
+    let out = run_git_allow_codes(repo, args, &[0, 1])?;
+    Ok((!out.trim().is_empty()).then_some(out))
 }
 
 fn head_commit(repo: &Path) -> Result<Option<String>, GitError> {
@@ -484,6 +482,16 @@ mod tests {
         let page = read_commits(repo.path(), &query(None, 0, 10)).unwrap();
         assert!(page.commits.is_empty());
         assert!(!page.has_more);
+    }
+
+    #[test]
+    fn commits_of_non_repo_is_an_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Safe even if the temp dir sits inside some repository: stop discovery.
+        let broken = tmp.path().join("broken");
+        fs::create_dir(&broken).unwrap();
+        fs::create_dir(broken.join(".git")).unwrap();
+        assert!(read_commits(&broken, &query(None, 0, 10)).is_err());
     }
 
     #[test]

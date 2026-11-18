@@ -144,6 +144,8 @@ pub fn read_commits(repo: &Path, q: &LogQuery) -> Result<CommitPage, GitError> {
     let skip = format!("--skip={}", q.skip);
     let mut args: Vec<&str> = vec![
         "log",
+        // A user's `log.showSignature` would print the check before each record.
+        "--no-show-signature",
         "--date-order",
         "--format=%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%s%x1e",
         &max,
@@ -274,6 +276,7 @@ pub fn read_commit_details(repo: &Path, hash: &str) -> Result<CommitDetails, Git
         repo,
         &[
             "show",
+            "--no-show-signature",
             "-s",
             "--format=%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%cn%x1f%ce%x1f%ct%x1f%B",
             hash,
@@ -348,7 +351,7 @@ pub fn read_file_diff(
                 args.extend(diff_opts);
                 args.extend([parent.as_str(), hash.as_str()]);
             } else {
-                args.extend(["show", "--format="]);
+                args.extend(["show", "--no-show-signature", "--format="]);
                 args.extend(diff_opts);
                 args.push(hash);
             }
@@ -727,5 +730,44 @@ mod tests {
             None
         );
         assert_eq!(read_resolve_commit(repo.path(), "--all").unwrap(), None);
+    }
+
+    /// `log.showSignature=true` makes `log` and `show` print the signature
+    /// check on stdout, before each record, unless told not to.
+    #[test]
+    fn signed_commits_parse_with_log_show_signature() {
+        let repo = TestRepo::new();
+        let key = repo.path().join(".git/test-signing-key");
+        let keygen = Command::new("ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-N", "", "-C", "test", "-f"])
+            .arg(&key)
+            .stdin(std::process::Stdio::null())
+            .output();
+        if !keygen.is_ok_and(|o| o.status.success()) {
+            eprintln!("ssh-keygen unavailable: skipping");
+            return;
+        }
+        repo.git(&["config", "gpg.format", "ssh"]);
+        repo.git(&["config", "user.signingkey", key.to_str().unwrap()]);
+        repo.git(&["config", "log.showSignature", "true"]);
+        fs::write(repo.path().join("a.txt"), "ligne\n").unwrap();
+        repo.git(&["add", "-A"]);
+        repo.git(&["commit", "-q", "-S", "-m", "signed root"]);
+        let root = repo.git(&["rev-parse", "HEAD"]);
+        fs::write(repo.path().join("a.txt"), "ligne\nsuite\n").unwrap();
+        repo.git(&["commit", "-q", "-S", "-am", "signed child"]);
+        let child = repo.git(&["rev-parse", "HEAD"]);
+
+        let page = read_commits(repo.path(), &query(None, 0, 10)).unwrap();
+        assert_eq!(hashes(&page), [child.as_str(), root.as_str()]);
+        assert_eq!(page.commits[1].parents, Vec::<String>::new());
+
+        let d = read_commit_details(repo.path(), &child).unwrap();
+        assert_eq!(d.hash, child);
+        assert_eq!(d.parents, std::slice::from_ref(&root));
+
+        let target = DiffTarget::Commit { hash: root };
+        let diff = read_file_diff(repo.path(), &target, "a.txt", None).unwrap();
+        assert!(diff.starts_with("diff --git"), "{diff}");
     }
 }

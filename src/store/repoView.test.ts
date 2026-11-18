@@ -145,6 +145,42 @@ describe("useRepoView", () => {
 		expect(await useRepoView.getState().loadUntil("nope")).toBe(false);
 	});
 
+	it("requestScrollTo pages in the commit then sets scrollTarget; false when absent", async () => {
+		mockBackend({
+			get_commits: ({ query }) => ({
+				commits: range(query.skip, 2),
+				hasMore: query.skip < 4,
+			}),
+		});
+		await useRepoView.getState().open("/r");
+		expect(await useRepoView.getState().requestScrollTo("h5")).toBe(true);
+		expect(useRepoView.getState().scrollTarget).toBe("h5");
+		useRepoView.getState().clearScrollTarget();
+		expect(useRepoView.getState().scrollTarget).toBeNull();
+		expect(await useRepoView.getState().requestScrollTo("nope")).toBe(false);
+		expect(useRepoView.getState().scrollTarget).toBeNull();
+	});
+
+	it("requestScrollTo waits for a load in flight instead of giving up", async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((r) => {
+			release = r;
+		});
+		mockBackend({
+			get_commits: async ({ query }) => {
+				await gate;
+				return { commits: range(query.skip, 2), hasMore: query.skip < 4 };
+			},
+		});
+		const opening = useRepoView.getState().open("/r");
+		await vi.waitFor(() => expect(useRepoView.getState().loading).toBe(true));
+		const scroll = useRepoView.getState().requestScrollTo("h3");
+		release();
+		await opening;
+		expect(await scroll).toBe(true);
+		expect(useRepoView.getState().scrollTarget).toBe("h3");
+	});
+
 	it("coalesces refresh calls made while one is running", async () => {
 		mockBackend();
 		await useRepoView.getState().open("/r");

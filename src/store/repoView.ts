@@ -21,10 +21,15 @@ interface RepoViewState {
 	loading: boolean;
 	error: GitError | null;
 	prefs: RepoPrefs;
+	/** Hash the commit table should scroll to; cleared once it has done so. */
+	scrollTarget: string | null;
 	open(repo: string): Promise<void>;
 	refresh(): Promise<void>;
 	loadMore(): Promise<void>;
 	loadUntil(hash: string): Promise<boolean>;
+	/** Loads pages until `hash` is listed, then sets `scrollTarget`. False if it is not in the view. */
+	requestScrollTo(hash: string): Promise<boolean>;
+	clearScrollTarget(): void;
 	setBranches(branches: string[] | null): Promise<void>;
 	setShowRemotes(show: boolean): Promise<void>;
 }
@@ -97,6 +102,7 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 		loading: false,
 		error: null,
 		prefs: DEFAULT_REPO_PREFS,
+		scrollTarget: null,
 
 		async open(repo) {
 			const mine = ++token;
@@ -109,6 +115,7 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 				loading: true,
 				error: null,
 				prefs: DEFAULT_REPO_PREFS,
+				scrollTarget: null,
 			});
 			try {
 				const prefs = await getRepoPrefs(repo);
@@ -186,6 +193,27 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 					return false;
 				await get().loadMore();
 			}
+		},
+
+		async requestScrollTo(hash) {
+			const startToken = token;
+			// A history reload in flight would make loadUntil give up; wait for it.
+			if (get().loading)
+				await new Promise<void>((resolve) => {
+					const unsubscribe = useRepoView.subscribe((s) => {
+						if (!s.loading) {
+							unsubscribe();
+							resolve();
+						}
+					});
+				});
+			if (token !== startToken || !(await get().loadUntil(hash))) return false;
+			set({ scrollTarget: hash });
+			return true;
+		},
+
+		clearScrollTarget() {
+			set({ scrollTarget: null });
 		},
 
 		async setBranches(branches) {

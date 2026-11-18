@@ -12,6 +12,7 @@ const en = {
 		},
 		uncommitted: "Uncommitted Changes ({{count}})",
 		loadMore: "Load more commits",
+		commitNotInView: "Commit not in the current view",
 		resizeColumn: "Resize column {{column}}",
 	},
 	details: {

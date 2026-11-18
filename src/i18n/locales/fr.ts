@@ -14,6 +14,7 @@ const fr: typeof en = {
 		},
 		uncommitted: "Modifications non validées ({{count}})",
 		loadMore: "Charger plus de commits",
+		commitNotInView: "Commit absent de la vue actuelle",
 		resizeColumn: "Redimensionner la colonne {{column}}",
 	},
 	details: {

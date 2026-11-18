@@ -231,3 +231,39 @@ it("expands one row at a time under the clicked commit and closes on Escape", as
 	expect(screen.queryByText("full message")).toBeNull();
 	expect(rowOf("root").style.transform).toBe("translateY(72px)");
 });
+
+it("scrolls to the scroll target after the render, and clears it", async () => {
+	setView({});
+	render(<CommitTable />);
+	const spy = vi.spyOn(HTMLElement.prototype, "scrollTo");
+	useRepoView.setState({ scrollTarget: "c1" });
+	await vi.waitFor(() =>
+		expect(useRepoView.getState().scrollTarget).toBeNull(),
+	);
+	expect(spy).toHaveBeenCalled();
+	spy.mockRestore();
+});
+
+it("tells the user when a clicked parent is not in the view", async () => {
+	vi.mocked(invoke).mockResolvedValue({
+		hash: "c2",
+		parents: ["gone"],
+		authorName: "L",
+		authorEmail: "l@e.com",
+		authorDate: 0,
+		committerName: "L",
+		committerEmail: "l@e.com",
+		committerDate: 0,
+		message: "m",
+		files: [],
+	});
+	setView({});
+	render(<CommitTable />);
+	fireEvent.click(rowOf("Merge branch 'f'"));
+	fireEvent.click(await screen.findByRole("button", { name: /go to parent/i }));
+	expect(await screen.findByRole("status")).toHaveTextContent(
+		"Commit not in the current view",
+	);
+	// The previous panel stays open.
+	expect(screen.getByText("m")).toBeInTheDocument();
+});

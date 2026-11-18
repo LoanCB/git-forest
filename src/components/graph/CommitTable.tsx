@@ -119,21 +119,47 @@ export function CommitTable() {
 		(id: string) => setExpanded((cur) => (cur === id ? null : id)),
 		[setExpanded],
 	);
+	const [notice, setNotice] = useState<string | null>(null);
+	useEffect(() => {
+		if (notice === null) return;
+		const timer = setTimeout(() => setNotice(null), 4000);
+		return () => clearTimeout(timer);
+	}, [notice]);
 	const goToParent = useCallback(
 		async (hash: string) => {
 			const opened = useRepoView.getState().repo;
-			if (!(await useRepoView.getState().loadUntil(hash))) return;
-			const state = useRepoView.getState();
-			if (state.repo !== opened) return;
-			const i = state.commits.findIndex((c) => c.hash === hash);
-			if (i < 0) return;
+			const previous = expanded;
+			// Expand first, so the scroll below runs against the final layout.
 			setExpanded(hash);
-			virtualizer.scrollToIndex(i + (state.uncommitted.length > 0 ? 1 : 0), {
-				align: "start",
-			});
+			const found = await useRepoView.getState().requestScrollTo(hash);
+			if (useRepoView.getState().repo !== opened) return;
+			if (!found) {
+				setExpanded(previous);
+				setNotice(t("graph.commitNotInView"));
+			}
 		},
-		[virtualizer, setExpanded],
+		[expanded, setExpanded, t],
 	);
+
+	const scrollTarget = useRepoView((s) => s.scrollTarget);
+	const clearScrollTarget = useRepoView((s) => s.clearScrollTarget);
+	useEffect(() => {
+		if (scrollTarget === null) return;
+		const i = commits.findIndex((c) => c.hash === scrollTarget);
+		if (i < 0) return;
+		const row = i + offset;
+		// The panel sits below its row, so only a panel above the target shifts it.
+		const index = expandedRow >= 0 && expandedRow < row ? row + 1 : row;
+		virtualizer.scrollToIndex(index, { align: "start" });
+		clearScrollTarget();
+	}, [
+		scrollTarget,
+		commits,
+		offset,
+		expandedRow,
+		virtualizer,
+		clearScrollTarget,
+	]);
 
 	const saveWidth = async (column: ColumnId, width: number) => {
 		if (!repo) return;
@@ -237,41 +263,53 @@ export function CommitTable() {
 	};
 
 	return (
-		<div
-			ref={scrollRef}
-			className="relative h-full overflow-auto text-[13px] text-foreground"
-		>
-			<div style={{ minWidth }}>
-				<div
-					className="sticky top-0 z-20 grid items-center border-b bg-background font-bold"
-					style={{ height: HEADER_HEIGHT, gridTemplateColumns: columns }}
-				>
-					{COLUMNS.map((c) => (
-						<div
-							key={c}
-							className="relative flex h-full items-center justify-center border-r last:border-r-0"
-						>
-							<span className="truncate px-1.5">{t(`graph.columns.${c}`)}</span>
-							<ColumnResizer
-								width={widths[c]}
-								label={t("graph.resizeColumn", {
-									column: t(`graph.columns.${c}`),
-								})}
-								onResize={(w) => setDragWidths((d) => ({ ...d, [c]: w }))}
-								onResizeEnd={(w) => void saveWidth(c, w)}
-							/>
-						</div>
-					))}
-				</div>
-				<div
-					className="relative"
-					style={{ height: virtualizer.getTotalSize() }}
-				>
-					{virtualizer
-						.getVirtualItems()
-						.map((item) => renderRow(item.index, item.start - HEADER_HEIGHT))}
+		<div className="relative h-full">
+			<div
+				ref={scrollRef}
+				className="relative h-full overflow-auto text-[13px] text-foreground"
+			>
+				<div style={{ minWidth }}>
+					<div
+						className="sticky top-0 z-20 grid items-center border-b bg-background font-bold"
+						style={{ height: HEADER_HEIGHT, gridTemplateColumns: columns }}
+					>
+						{COLUMNS.map((c) => (
+							<div
+								key={c}
+								className="relative flex h-full items-center justify-center border-r last:border-r-0"
+							>
+								<span className="truncate px-1.5">
+									{t(`graph.columns.${c}`)}
+								</span>
+								<ColumnResizer
+									width={widths[c]}
+									label={t("graph.resizeColumn", {
+										column: t(`graph.columns.${c}`),
+									})}
+									onResize={(w) => setDragWidths((d) => ({ ...d, [c]: w }))}
+									onResizeEnd={(w) => void saveWidth(c, w)}
+								/>
+							</div>
+						))}
+					</div>
+					<div
+						className="relative"
+						style={{ height: virtualizer.getTotalSize() }}
+					>
+						{virtualizer
+							.getVirtualItems()
+							.map((item) => renderRow(item.index, item.start - HEADER_HEIGHT))}
+					</div>
 				</div>
 			</div>
+			{notice && (
+				<div
+					role="status"
+					className="absolute inset-x-0 bottom-2 mx-auto w-fit rounded border bg-popover px-3 py-1 text-[13px] shadow"
+				>
+					{notice}
+				</div>
+			)}
 		</div>
 	);
 }

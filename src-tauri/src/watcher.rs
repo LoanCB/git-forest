@@ -119,9 +119,24 @@ fn is_relevant(path: &Path, workdir: &Path, git_dir: &Path) -> bool {
     let Ok(rel) = path.strip_prefix(workdir) else {
         return false;
     };
-    // `node_modules` and `target` churn during installs and builds.
-    !rel.components().any(|c| {
-        matches!(c, Component::Normal(n) if n == ".git" || n == "node_modules" || n == "target")
+    // Changes inside directories that are not watched (dependency and build
+    // output churn during installs and builds) do not count. The last
+    // component may be a hidden file such as `.gitignore`, which does.
+    let mut parts: Vec<_> = rel.components().collect();
+    let last = parts.pop();
+    let in_skipped = parts
+        .iter()
+        .any(|c| matches!(c, Component::Normal(n) if is_skipped_dir(n)));
+    let is_skipped_itself =
+        matches!(last, Some(Component::Normal(n)) if is_skipped_dir(n)) && path.is_dir();
+    !(in_skipped || is_skipped_itself)
+}
+
+/// Whether `dir` (a new directory seen in an event) belongs to the watched set.
+fn is_watchable_dir(dir: &Path, workdir: &Path) -> bool {
+    dir.strip_prefix(workdir).is_ok_and(|rel| {
+        !rel.components()
+            .any(|c| matches!(c, Component::Normal(n) if is_skipped_dir(n)))
     })
 }
 
@@ -157,7 +172,7 @@ pub fn start(dir: &Path, on_change: impl Fn() + Send + 'static) -> Result<RepoWa
             event
                 .paths
                 .iter()
-                .filter(|p| p.is_dir() && is_relevant(p, &w, &g) && p.starts_with(&w))
+                .filter(|p| p.is_dir() && is_watchable_dir(p, &w))
                 .cloned()
                 .collect()
         } else {
@@ -167,9 +182,13 @@ pub fn start(dir: &Path, on_change: impl Fn() + Send + 'static) -> Result<RepoWa
     })
     .map_err(failed)?;
     for d in watch_dirs(&workdir) {
-        watcher
-            .watch(&d, RecursiveMode::NonRecursive)
-            .map_err(failed)?;
+        match watcher.watch(&d, RecursiveMode::NonRecursive) {
+            Ok(()) => {}
+            // Only the root matters to everything else: a directory that is
+            // unreadable or gone since the walk just goes unwatched.
+            Err(e) if d != workdir && !matches!(e.kind, notify::ErrorKind::MaxFilesWatch) => {}
+            Err(e) => return Err(failed(e)),
+        }
     }
     // HEAD, index and packed-refs sit in the git dir; refs/ holds the rest.
     // A worktree's or a `.git` file's real git dir may lie outside the tree.
@@ -396,5 +415,36 @@ mod tests {
         slot.watch(2, || panic!("stale watch must not start"))
             .unwrap();
         assert!(slot.watcher.is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_unreadable_subdirectory_does_not_stop_the_watch() {
+        use std::os::unix::fs::PermissionsExt;
+        /// Restores permissions so the temp dir can be removed, even on panic.
+        struct Restore(PathBuf);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                let _ = fs::set_permissions(&self.0, fs::Permissions::from_mode(0o755));
+            }
+        }
+        let repo = TestRepo::new();
+        let locked = repo.path().join("locked");
+        fs::create_dir(&locked).unwrap();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+        let _restore = Restore(locked);
+        let (_w, rx) = watch(&repo);
+        fs::write(repo.path().join("other.txt"), "x").unwrap();
+        assert!(rx.recv_timeout(Duration::from_secs(3)).is_ok(), "no event");
+    }
+
+    #[test]
+    fn a_recreated_skipped_directory_is_not_watched() {
+        let repo = TestRepo::new();
+        let (_w, rx) = watch(&repo);
+        fs::create_dir_all(repo.path().join("src/dist")).unwrap();
+        assert!(rx.recv_timeout(Duration::from_secs(3)).is_ok());
+        fs::write(repo.path().join("src/dist/out.js"), "x").unwrap();
+        assert!(quiet(&rx, Duration::from_secs(1)));
     }
 }

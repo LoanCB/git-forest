@@ -4,6 +4,7 @@ import { dispatch } from "./fixtures";
 
 window.__calls = [];
 window.__failures ??= {};
+window.__unstubbed = [];
 
 window.__TAURI_INTERNALS__ = {
 	ipc: {

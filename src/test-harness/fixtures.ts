@@ -267,6 +267,8 @@ export function dispatch(
 		case "plugin:store|save":
 			return null;
 		default:
+			// A renamed or new command must fail the spec, not hide in a toast.
+			window.__unstubbed.push(cmd);
 			throw { kind: "failed", message: `Unstubbed command: ${cmd}` };
 	}
 }

@@ -3,5 +3,7 @@ interface Window {
 	/** Every `invoke` the app made, in order. */
 	__calls: { cmd: string; args: Record<string, unknown> | undefined }[];
 	/** Commands to reject, by name, with the value to reject with. */
+	/** Commands the dispatcher had no answer for; a spec expects none. */
+	__unstubbed: string[];
 	__failures: Record<string, unknown>;
 }

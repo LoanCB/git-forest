@@ -1,5 +1,9 @@
 import { expect, type Page, test } from "@playwright/test";
 
+test.afterEach(async ({ page }) => {
+	expect(await page.evaluate(() => window.__unstubbed)).toEqual([]);
+});
+
 const calls = (page: Page) => page.evaluate(() => window.__calls);
 
 test("open a repository, read the graph, inspect a commit, add a tag", async ({

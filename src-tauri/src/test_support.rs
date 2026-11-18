@@ -11,13 +11,25 @@ pub struct TestRepo {
 
 impl TestRepo {
     pub fn new() -> Self {
+        let repo = Self::init(&[]);
+        repo.git(&["config", "user.name", "Test"]);
+        repo.git(&["config", "user.email", "test@example.com"]);
+        repo
+    }
+
+    /// Bare repository, used as a local remote.
+    pub fn bare() -> Self {
+        Self::init(&["--bare"])
+    }
+
+    fn init(extra: &[&str]) -> Self {
         let repo = Self {
             dir: tempfile::tempdir().expect("tempdir"),
             clock: Cell::new(1_700_000_000),
         };
-        repo.git(&["init", "-q", "-b", "main"]);
-        repo.git(&["config", "user.name", "Test"]);
-        repo.git(&["config", "user.email", "test@example.com"]);
+        let mut args = vec!["init", "-q", "-b", "main"];
+        args.extend_from_slice(extra);
+        repo.git(&args);
         repo
     }
 

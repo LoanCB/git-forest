@@ -16,6 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build());
 
     builder
+        .manage(git::ops::OpRegistry::default())
         .invoke_handler(tauri::generate_handler![
             repos::list_repos,
             repos::add_repo,
@@ -35,7 +36,13 @@ pub fn run() {
             git::actions::rename_branch,
             git::actions::delete_branch,
             git::actions::add_tag,
-            git::actions::delete_tag
+            git::actions::delete_tag,
+            git::network::fetch,
+            git::network::push_branch,
+            git::network::push_tag,
+            git::network::delete_remote_branch,
+            git::network::delete_remote_tag,
+            git::ops::cancel_operation
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

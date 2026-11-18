@@ -87,3 +87,34 @@ export const addTag = (
 ) => call<void>("add_tag", { repo, name, at, message });
 export const deleteTag = (repo: string, name: string) =>
 	call<void>("delete_tag", { repo, name });
+
+/** `opId` comes from `crypto.randomUUID()` and is what `cancelOperation` takes. */
+export const fetch = (opId: string, repo: string, prune: boolean) =>
+	call<void>("fetch", { opId, repo, prune });
+export const pushBranch = (
+	opId: string,
+	repo: string,
+	remote: string,
+	name: string,
+	setUpstream: boolean,
+) => call<void>("push_branch", { opId, repo, remote, name, setUpstream });
+export const pushTag = (
+	opId: string,
+	repo: string,
+	remote: string,
+	name: string,
+) => call<void>("push_tag", { opId, repo, remote, name });
+export const deleteRemoteBranch = (
+	opId: string,
+	repo: string,
+	remote: string,
+	name: string,
+) => call<void>("delete_remote_branch", { opId, repo, remote, name });
+export const deleteRemoteTag = (
+	opId: string,
+	repo: string,
+	remote: string,
+	name: string,
+) => call<void>("delete_remote_tag", { opId, repo, remote, name });
+export const cancelOperation = (opId: string) =>
+	call<void>("cancel_operation", { opId });

@@ -39,7 +39,7 @@ The tag sets the app version at build time.
 
 ### Signing key setup (one-time)
 
-Updater artifacts are signed with a Tauri signing key. Until this is done, release builds cannot produce signed updates.
+Updater artifacts are signed with a Tauri signing key. **Pushing a `v*` tag fails until both the secrets and the public key are set**: the release workflow stops at its first step if `TAURI_SIGNING_PRIVATE_KEY` is empty or if `src-tauri/tauri.conf.json` still contains `REPLACE_WITH_PUBKEY`. The public key must be committed before the first tag. (With the secrets set but the placeholder public key shipped, the build would succeed, but the published updates would fail signature verification in the app.)
 
 1. Generate the key pair:
 

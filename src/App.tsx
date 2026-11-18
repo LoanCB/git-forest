@@ -24,6 +24,7 @@ function Content() {
 
 	useEffect(() => {
 		if (current) void useRepoView.getState().open(current);
+		else useRepoView.getState().close();
 	}, [current]);
 
 	if (!loaded) return null;

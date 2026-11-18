@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReposStore } from "@/store/repos";
 import { useRepoView } from "@/store/repoView";
@@ -70,5 +70,28 @@ describe("App", () => {
 		screen.getByRole("button", { name: "Remove from list" }).click();
 		await waitFor(() => expect(useReposStore.getState().repos).toEqual([]));
 		expect(await screen.findByText(/add a repository/i)).toBeInTheDocument();
+	});
+
+	it("removing the last repository disables the toolbar and F5 does nothing", async () => {
+		vi.mocked(invoke).mockImplementation(async (cmd) => {
+			if (cmd === "list_repos") return [{ path: "/a", name: "a" }];
+			if (cmd === "get_refs") return refs;
+			if (cmd === "get_commits") return { commits: [], hasMore: false };
+			return [];
+		});
+		render(<App />);
+		const refresh = await screen.findByRole("button", { name: "Refresh" });
+		await waitFor(() => expect(refresh).toBeEnabled());
+
+		await useReposStore.getState().remove("/a");
+		await screen.findByText(/add a repository/i);
+		expect(refresh).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Fetch" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Show All" })).toBeDisabled();
+
+		vi.mocked(invoke).mockClear();
+		fireEvent.keyDown(document, { key: "F5" });
+		await new Promise((r) => setTimeout(r, 0));
+		expect(invoke).not.toHaveBeenCalled();
 	});
 });

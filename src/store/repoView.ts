@@ -24,6 +24,8 @@ interface RepoViewState {
 	/** Hash the commit table should scroll to; cleared once it has done so. */
 	scrollTarget: string | null;
 	open(repo: string): Promise<void>;
+	/** Drops the open repository (e.g. it was removed from the list) and any load in flight. */
+	close(): void;
 	refresh(): Promise<void>;
 	loadMore(): Promise<void>;
 	loadUntil(hash: string): Promise<boolean>;
@@ -138,6 +140,22 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 			} catch (e) {
 				if (mine === token) set({ error: toGitError(e), loading: false });
 			}
+		},
+
+		close() {
+			token++;
+			listVersion++;
+			set({
+				repo: null,
+				refs: null,
+				commits: [],
+				uncommitted: [],
+				hasMore: false,
+				loading: false,
+				error: null,
+				prefs: DEFAULT_REPO_PREFS,
+				scrollTarget: null,
+			});
 		},
 
 		async refresh() {

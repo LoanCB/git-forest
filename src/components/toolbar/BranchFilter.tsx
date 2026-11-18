@@ -10,6 +10,7 @@ import { useRepoView } from "@/store/repoView";
 
 export function BranchFilter() {
 	const { t } = useTranslation();
+	const repo = useRepoView((s) => s.repo);
 	const refs = useRepoView((s) => s.refs);
 	const prefs = useRepoView((s) => s.prefs);
 	const setBranches = useRepoView((s) => s.setBranches);
@@ -31,7 +32,14 @@ export function BranchFilter() {
 	return (
 		<Popover>
 			<PopoverTrigger
-				render={<Button variant="outline" size="sm" className="min-w-28" />}
+				render={
+					<Button
+						variant="outline"
+						size="sm"
+						className="min-w-28"
+						disabled={repo === null}
+					/>
+				}
 			>
 				{selected
 					? t("toolbar.branchesSelected", { count: selected.length })

@@ -39,8 +39,10 @@ it("Show All clears the selection; picking branches calls setBranches", () => {
 	fireEvent.click(screen.getByRole("checkbox", { name: "main" }));
 	expect(setBranches).toHaveBeenLastCalledWith(null);
 
+	setBranches.mockClear();
 	fireEvent.click(screen.getByRole("button", { name: "Show All" }));
-	expect(setBranches).toHaveBeenLastCalledWith(null);
+	expect(setBranches).toHaveBeenCalledTimes(1);
+	expect(setBranches).toHaveBeenCalledWith(null);
 });
 
 it("lists remote branches when they are shown", () => {

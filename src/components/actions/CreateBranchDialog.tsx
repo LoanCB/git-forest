@@ -16,10 +16,15 @@ import { useRepoView } from "@/store/repoView";
 
 interface CreateBranchDialogProps {
 	hash: string;
+	repo: string;
 	onClose: () => void;
 }
 
-export function CreateBranchDialog({ hash, onClose }: CreateBranchDialogProps) {
+export function CreateBranchDialog({
+	repo: openedOn,
+	hash,
+	onClose,
+}: CreateBranchDialogProps) {
 	const { t } = useTranslation();
 	const busy = useOperations(selectLocalBusy);
 	const [name, setName] = useState("");
@@ -28,7 +33,7 @@ export function CreateBranchDialog({ hash, onClose }: CreateBranchDialogProps) {
 
 	const submit = async (e: FormEvent) => {
 		e.preventDefault();
-		const repo = useRepoView.getState().repo;
+		const repo = useRepoView.getState().repo === openedOn ? openedOn : null;
 		if (!repo || !name) return;
 		const result = await useOperations
 			.getState()

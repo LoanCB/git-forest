@@ -15,10 +15,15 @@ import { useRepoView } from "@/store/repoView";
 
 interface RenameBranchDialogProps {
 	name: string;
+	repo: string;
 	onClose: () => void;
 }
 
-export function RenameBranchDialog({ name, onClose }: RenameBranchDialogProps) {
+export function RenameBranchDialog({
+	repo: openedOn,
+	name,
+	onClose,
+}: RenameBranchDialogProps) {
 	const { t } = useTranslation();
 	const busy = useOperations(selectLocalBusy);
 	const [newName, setNewName] = useState(name);
@@ -26,7 +31,7 @@ export function RenameBranchDialog({ name, onClose }: RenameBranchDialogProps) {
 
 	const submit = async (e: FormEvent) => {
 		e.preventDefault();
-		const repo = useRepoView.getState().repo;
+		const repo = useRepoView.getState().repo === openedOn ? openedOn : null;
 		if (!repo || !newName || newName === name) return;
 		const result = await useOperations
 			.getState()

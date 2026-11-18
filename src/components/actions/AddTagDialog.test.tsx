@@ -14,7 +14,7 @@ beforeEach(resetActionStores);
 const renderDialog = (onClose = vi.fn()) => {
 	render(
 		<>
-			<AddTagDialog hash={HASH} onClose={onClose} />
+			<AddTagDialog repo="/p/r" hash={HASH} onClose={onClose} />
 			<GitErrorDialog />
 		</>,
 	);
@@ -35,12 +35,12 @@ it("AddTagDialog: annotated by default, message optional, Push to remote pushes 
 	submit();
 
 	await waitFor(() => expect(callsTo("push_tag")).toHaveLength(1));
-	// No message typed: the annotation falls back to the tag's name.
+	// No message typed: an annotated tag still goes out with an empty one.
 	expect(callsTo("add_tag")[0][1]).toEqual({
 		repo: "/p/r",
 		name: "v1.0",
 		at: HASH,
-		message: "v1.0",
+		message: "",
 	});
 	// origin is preferred over the first remote.
 	expect(callsTo("push_tag")[0][1]).toMatchObject({

@@ -13,7 +13,6 @@ import { useRepoView } from "@/store/repoView";
 import { AddTagDialog } from "./AddTagDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CreateBranchDialog } from "./CreateBranchDialog";
-import { GitErrorDialog } from "./GitErrorDialog";
 import { PushDialog } from "./PushDialog";
 import { RenameBranchDialog } from "./RenameBranchDialog";
 import { defaultRemote } from "./remotes";
@@ -47,7 +46,7 @@ function useCurrentBranchPushShortcut() {
 	}, []);
 }
 
-/** Renders whichever dialog was requested, plus the error dialog. */
+/** Renders whichever dialog was requested. */
 export function ActionDialogs() {
 	const { t } = useTranslation();
 	const request = useActionDialog((s) => s.request);
@@ -55,12 +54,18 @@ export function ActionDialogs() {
 	const busy = useOperations(selectLocalBusy);
 	useCurrentBranchPushShortcut();
 
+	// The repository the dialog was opened on, only while it is still the open one.
+	const openRepo = () =>
+		request && request.repo === useRepoView.getState().repo
+			? request.repo
+			: null;
+
 	const run = (
 		label: string,
 		fn: (repo: string) => Promise<void>,
 		after?: () => void,
 	) => {
-		const repo = useRepoView.getState().repo;
+		const repo = openRepo();
 		close();
 		if (!repo) return;
 		void useOperations
@@ -71,12 +76,7 @@ export function ActionDialogs() {
 			});
 	};
 
-	return (
-		<>
-			{renderDialog()}
-			<GitErrorDialog />
-		</>
-	);
+	return renderDialog();
 
 	function renderDialog() {
 		if (!request) return null;
@@ -102,11 +102,29 @@ export function ActionDialogs() {
 				);
 			}
 			case "createBranch":
-				return <CreateBranchDialog hash={request.hash} onClose={close} />;
+				return (
+					<CreateBranchDialog
+						repo={request.repo}
+						hash={request.hash}
+						onClose={close}
+					/>
+				);
 			case "addTag":
-				return <AddTagDialog hash={request.hash} onClose={close} />;
+				return (
+					<AddTagDialog
+						repo={request.repo}
+						hash={request.hash}
+						onClose={close}
+					/>
+				);
 			case "renameBranch":
-				return <RenameBranchDialog name={request.name} onClose={close} />;
+				return (
+					<RenameBranchDialog
+						repo={request.repo}
+						name={request.name}
+						onClose={close}
+					/>
+				);
 			case "deleteBranch": {
 				const { name } = request;
 				return (
@@ -142,7 +160,7 @@ export function ActionDialogs() {
 						requireText={name}
 						onClose={close}
 						onConfirm={() => {
-							const repo = useRepoView.getState().repo;
+							const repo = openRepo();
 							close();
 							if (!repo) return;
 							void useOperations
@@ -184,7 +202,7 @@ export function ActionDialogs() {
 								t("actions.label.deleteTag", { name }),
 								(repo) => deleteTag(repo, name),
 								() => {
-									const repo = useRepoView.getState().repo;
+									const repo = openRepo();
 									if (checked.remote && repo)
 										void useOperations
 											.getState()
@@ -201,6 +219,7 @@ export function ActionDialogs() {
 			case "pushBranch":
 				return (
 					<PushDialog
+						repo={request.repo}
 						kind="branch"
 						name={request.name}
 						hasUpstream={request.hasUpstream}
@@ -208,7 +227,14 @@ export function ActionDialogs() {
 					/>
 				);
 			case "pushTag":
-				return <PushDialog kind="tag" name={request.name} onClose={close} />;
+				return (
+					<PushDialog
+						repo={request.repo}
+						kind="tag"
+						name={request.name}
+						onClose={close}
+					/>
+				);
 		}
 	}
 }

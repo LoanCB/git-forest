@@ -198,13 +198,19 @@ describe("useRepoView", () => {
 		const first = useRepoView.getState().refresh();
 		const second = useRepoView.getState().refresh();
 		const third = useRepoView.getState().refresh();
-		await second;
-		await third;
+		// A coalesced call resolves with the re-run, not at once.
+		let secondDone = false;
+		void second.then(() => {
+			secondDone = true;
+		});
+		await Promise.resolve();
+		expect(secondDone).toBe(false);
 		expect(invoke.mock.calls.filter((c) => c[0] === "get_refs")).toHaveLength(
 			1,
 		);
 		release();
-		await first;
+		await Promise.all([first, second, third]);
+		expect(secondDone).toBe(true);
 		expect(invoke.mock.calls.filter((c) => c[0] === "get_refs")).toHaveLength(
 			2,
 		);

@@ -14,7 +14,7 @@ import { useOperations } from "@/store/operations";
 import { useRepoView } from "@/store/repoView";
 import { defaultRemote } from "./remotes";
 
-type PushDialogProps = { onClose: () => void } & (
+type PushDialogProps = { repo: string; onClose: () => void } & (
 	| { kind: "branch"; name: string; hasUpstream: boolean }
 	| { kind: "tag"; name: string }
 );
@@ -29,7 +29,7 @@ export function PushDialog(props: PushDialogProps) {
 	);
 
 	const submit = () => {
-		const repo = useRepoView.getState().repo;
+		const repo = useRepoView.getState().repo === props.repo ? props.repo : null;
 		if (!repo || !remote) return;
 		onClose();
 		// The push runs on in the operation bar, where it can be cancelled.

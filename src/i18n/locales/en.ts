@@ -67,7 +67,7 @@ const en = {
 		close: "Close",
 		copyHash: "Copy hash",
 		fetchAndPrune: "Fetch & prune",
-		errorTitle: "{{label}} failed",
+		errorTitle: "{{label}} failed — {{repo}}",
 		operations: "Operations in progress",
 		commit: {
 			checkout: "Checkout…",

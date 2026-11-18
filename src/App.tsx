@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionDialogs } from "@/components/actions/ActionDialogs";
+import { GitErrorDialog } from "@/components/actions/GitErrorDialog";
 import { OperationBar } from "@/components/actions/OperationBar";
 import { CommitTable } from "@/components/graph/CommitTable";
 import { RepoMissing } from "@/components/layout/RepoMissing";
@@ -50,7 +51,6 @@ function Content() {
 			<div className="min-h-0 flex-1">
 				<CommitTable />
 			</div>
-			<OperationBar />
 			<ActionDialogs />
 		</div>
 	);
@@ -62,6 +62,8 @@ export default function App() {
 			<main className="flex h-screen flex-col">
 				<Toolbar />
 				<Content />
+				<OperationBar />
+				<GitErrorDialog />
 			</main>
 		</ThemeProvider>
 	);

@@ -69,7 +69,7 @@ const fr: typeof en = {
 		close: "Fermer",
 		copyHash: "Copier le hash",
 		fetchAndPrune: "Fetch & prune",
-		errorTitle: "Échec : {{label}}",
+		errorTitle: "Échec : {{label}} — {{repo}}",
 		operations: "Opérations en cours",
 		commit: {
 			checkout: "Checkout…",

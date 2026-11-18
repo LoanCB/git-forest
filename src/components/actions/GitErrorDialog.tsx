@@ -9,11 +9,15 @@ import {
 } from "@/components/ui/dialog";
 import { useOperations } from "@/store/operations";
 
+const repoName = (path: string | null) =>
+	path?.split(/[\\/]/).filter(Boolean).pop() ?? "";
+
 /** Shows the failure of the last action, git's own words untouched. */
 export function GitErrorDialog() {
 	const { t } = useTranslation();
 	const error = useOperations((s) => s.lastError);
 	const label = useOperations((s) => s.lastErrorLabel);
+	const repo = useOperations((s) => s.lastErrorRepo);
 	const clearError = useOperations((s) => s.clearError);
 	return (
 		<Dialog
@@ -24,7 +28,9 @@ export function GitErrorDialog() {
 		>
 			<DialogContent className="sm:max-w-xl">
 				<DialogHeader>
-					<DialogTitle>{t("actions.errorTitle", { label })}</DialogTitle>
+					<DialogTitle>
+						{t("actions.errorTitle", { label, repo: repoName(repo) })}
+					</DialogTitle>
 				</DialogHeader>
 				<pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 font-mono text-xs">
 					{error?.message}

@@ -42,7 +42,7 @@ let token = 0;
 // Bumped whenever `commits` is replaced; a loadMore computed against an older
 // list must not append to the new one.
 let listVersion = 0;
-let refreshing = false;
+let refreshLoop: Promise<void> | null = null;
 let refreshQueued = false;
 let pageLoad: Promise<void> | null = null;
 
@@ -158,20 +158,25 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 			});
 		},
 
-		async refresh() {
-			if (refreshing) {
+		refresh() {
+			// A call during a refresh queues one more run and resolves with the loop,
+			// so its caller sees the data that follows its own change.
+			if (refreshLoop) {
 				refreshQueued = true;
-				return;
+				return refreshLoop;
 			}
-			refreshing = true;
-			try {
-				do {
-					refreshQueued = false;
-					await refreshOnce();
-				} while (refreshQueued);
-			} finally {
-				refreshing = false;
-			}
+			const loop = (async () => {
+				try {
+					do {
+						refreshQueued = false;
+						await refreshOnce();
+					} while (refreshQueued);
+				} finally {
+					refreshLoop = null;
+				}
+			})();
+			refreshLoop = loop;
+			return loop;
 		},
 
 		loadMore() {

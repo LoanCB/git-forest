@@ -4,6 +4,7 @@ import i18n from "@/i18n";
 import { ActionDialogs } from "./ActionDialogs";
 import { BranchContextMenu } from "./BranchContextMenu";
 import { CommitContextMenu } from "./CommitContextMenu";
+import { GitErrorDialog } from "./GitErrorDialog";
 import { callsTo, resetActionStores } from "./testUtils";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -18,6 +19,7 @@ const renderMenu = (current = false) => {
 				<span>feat/x badge</span>
 			</BranchContextMenu>
 			<ActionDialogs />
+			<GitErrorDialog />
 		</>,
 	);
 	fireEvent.contextMenu(screen.getByText("feat/x badge"));
@@ -76,6 +78,10 @@ it("a failed action shows git's message in the error dialog", async () => {
 		"error: branch 'feat/x' is not fully merged",
 	);
 	expect(pre.tagName).toBe("PRE");
+	// The title says what failed and on which repository.
+	expect(
+		screen.getByText("Delete branch feat/x failed — r"),
+	).toBeInTheDocument();
 });
 
 it("a right-click on a badge opens the branch menu, not the commit's", async () => {

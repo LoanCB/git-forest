@@ -12,6 +12,7 @@ beforeEach(() => {
 	refresh.mockReset().mockResolvedValue(undefined);
 	useRepoView.setState({ refresh });
 	useOperations.setState({ running: [], lastError: null });
+	useRepoView.setState({ repo: "/p/r" });
 });
 
 it("runNetwork shows the operation with a Cancel button until it settles", async () => {
@@ -95,4 +96,27 @@ it("refuses a second local action while one is running", async () => {
 	expect(fn).not.toHaveBeenCalled();
 	finish();
 	await first;
+});
+
+it("records the repository an error belongs to, even if another is open by then", async () => {
+	let reject: (e: unknown) => void = () => {};
+	const done = useOperations
+		.getState()
+		.runNetwork("Fetch", () => new Promise<void>((_, r) => (reject = r)));
+	expect(useOperations.getState().running[0].repo).toBe("/p/r");
+	useRepoView.setState({ repo: "/p/other" });
+	reject({ kind: "failed", message: "boom" });
+	await done;
+	expect(useOperations.getState().lastErrorRepo).toBe("/p/r");
+});
+
+it("a local action stays busy until the refresh has finished", async () => {
+	let finishRefresh: () => void = () => {};
+	refresh.mockReturnValue(new Promise<void>((r) => (finishRefresh = r)));
+	const done = useOperations.getState().runLocal("A", async () => {});
+	await vi.waitFor(() => expect(refresh).toHaveBeenCalled());
+	expect(useOperations.getState().running).toHaveLength(1);
+	finishRefresh();
+	await done;
+	expect(useOperations.getState().running).toHaveLength(0);
 });

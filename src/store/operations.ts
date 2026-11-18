@@ -8,6 +8,8 @@ export interface RunningOperation {
 	label: string;
 	/** Network operations can be cancelled; local ones are over in an instant. */
 	cancellable: boolean;
+	/** The repository that was open when it started. */
+	repo: string | null;
 }
 
 export interface RunOptions {
@@ -26,6 +28,8 @@ interface OperationsState {
 	lastError: GitError | null;
 	/** Label of the operation that produced `lastError`. */
 	lastErrorLabel: string;
+	/** Repository the failed operation ran on. */
+	lastErrorRepo: string | null;
 	runLocal(
 		label: string,
 		fn: () => Promise<void>,
@@ -52,7 +56,10 @@ export const useOperations = create<OperationsState>((set, get) => {
 		options: RunOptions = {},
 	): Promise<RunResult> {
 		const id = crypto.randomUUID();
-		set((s) => ({ running: [...s.running, { id, label, cancellable }] }));
+		const repo = useRepoView.getState().repo;
+		set((s) => ({
+			running: [...s.running, { id, label, cancellable, repo }],
+		}));
 		const settle = () =>
 			set((s) => ({ running: s.running.filter((op) => op.id !== id) }));
 		let error: GitError | null = null;
@@ -67,7 +74,7 @@ export const useOperations = create<OperationsState>((set, get) => {
 			error.kind !== "cancelled" &&
 			!(options.inlineInvalidName && error.kind === "invalidName")
 		)
-			set({ lastError: error, lastErrorLabel: label });
+			set({ lastError: error, lastErrorLabel: label, lastErrorRepo: repo });
 		try {
 			await useRepoView.getState().refresh();
 		} finally {
@@ -81,6 +88,7 @@ export const useOperations = create<OperationsState>((set, get) => {
 		running: [],
 		lastError: null,
 		lastErrorLabel: "",
+		lastErrorRepo: null,
 
 		async runLocal(label, fn, options) {
 			if (selectLocalBusy(get())) return { ok: false, error: null };
@@ -95,7 +103,7 @@ export const useOperations = create<OperationsState>((set, get) => {
 		},
 
 		clearError() {
-			set({ lastError: null, lastErrorLabel: "" });
+			set({ lastError: null, lastErrorLabel: "", lastErrorRepo: null });
 		},
 	};
 });

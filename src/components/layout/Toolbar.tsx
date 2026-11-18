@@ -31,7 +31,13 @@ export function Toolbar() {
 	const showRemotes = useRepoView((s) => s.prefs.showRemotes);
 	const [manageOpen, setManageOpen] = useState(false);
 	const searchRef = useRef<HTMLInputElement>(null);
+	const viewError = useRepoView((s) => s.error);
 	const hasRepo = repo !== null;
+	// Nothing to fetch from a folder that is gone or no longer a repository.
+	const canFetch =
+		hasRepo &&
+		viewError?.kind !== "repoNotFound" &&
+		viewError?.kind !== "notARepo";
 
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
@@ -80,7 +86,7 @@ export function Toolbar() {
 							size="icon-sm"
 							aria-label={t("toolbar.fetch")}
 							title={t("toolbar.fetch")}
-							disabled={!hasRepo}
+							disabled={!canFetch}
 							onClick={() => runFetch(false, t("actions.label.fetch"))}
 						>
 							<CloudDownloadIcon />
@@ -88,7 +94,7 @@ export function Toolbar() {
 					</ContextMenuTrigger>
 					<ContextMenuContent>
 						<ContextMenuItem
-							disabled={!hasRepo}
+							disabled={!canFetch}
 							onClick={() => runFetch(true, t("actions.label.fetchPrune"))}
 						>
 							{t("actions.fetchAndPrune")}

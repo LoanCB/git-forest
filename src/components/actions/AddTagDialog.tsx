@@ -17,12 +17,17 @@ import { defaultRemote } from "./remotes";
 
 interface AddTagDialogProps {
 	hash: string;
+	repo: string;
 	onClose: () => void;
 }
 
 const fieldRow = "grid grid-cols-[6.5rem_1fr] items-center gap-2";
 
-export function AddTagDialog({ hash, onClose }: AddTagDialogProps) {
+export function AddTagDialog({
+	repo: openedOn,
+	hash,
+	onClose,
+}: AddTagDialogProps) {
 	const { t } = useTranslation();
 	const remotes = useRepoView((s) => s.refs?.remoteNames ?? []);
 	const busy = useOperations(selectLocalBusy);
@@ -34,11 +39,11 @@ export function AddTagDialog({ hash, onClose }: AddTagDialogProps) {
 
 	const submit = async (e: FormEvent) => {
 		e.preventDefault();
-		const repo = useRepoView.getState().repo;
+		const repo = useRepoView.getState().repo === openedOn ? openedOn : null;
 		if (!repo || !name) return;
 		const { runLocal, runNetwork } = useOperations.getState();
-		// git refuses an empty annotation, so the tag's own name stands in for it.
-		const text = annotated ? message.trim() || name : null;
+		// An annotated tag may carry an empty message; a lightweight one has none.
+		const text = annotated ? message.trim() : null;
 		const result = await runLocal(
 			t("actions.label.addTag", { name }),
 			() => addTag(repo, name, hash, text),

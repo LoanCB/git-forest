@@ -9,6 +9,7 @@ import {
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { type DialogRequest, useActionDialog } from "@/store/actionDialog";
+import { useRepoView } from "@/store/repoView";
 import { ActionDialogs } from "./ActionDialogs";
 import { callsTo, HASH, resetActionStores } from "./testUtils";
 
@@ -111,4 +112,23 @@ it("Ctrl+Shift+P opens the push dialog for the current branch, and is ignored wh
 
 	fireEvent.keyDown(document, { key: "P", ctrlKey: true, shiftKey: true });
 	expect(screen.getAllByRole("dialog")).toHaveLength(1);
+});
+
+it("a pending dialog is dropped when the repository changes, so it cannot run on the next one", async () => {
+	open({ kind: "deleteBranch", name: "feat/x" });
+	await screen.findByRole("button", { name: "Delete" });
+	act(() => useRepoView.setState({ repo: "/p/other" }));
+	await waitFor(() => expect(useActionDialog.getState().request).toBeNull());
+	expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+	expect(callsTo("delete_branch")).toHaveLength(0);
+});
+
+it("a dialog confirmed on a repository that is no longer open runs nothing", async () => {
+	open({ kind: "deleteBranch", name: "feat/x" });
+	const confirm = await screen.findByRole("button", { name: "Delete" });
+	// Swap the repo without notifying subscribers, as a race would.
+	useRepoView.getState().repo = "/p/other";
+	fireEvent.click(confirm);
+	await waitFor(() => expect(useActionDialog.getState().request).toBeNull());
+	expect(callsTo("delete_branch")).toHaveLength(0);
 });

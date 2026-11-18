@@ -5,6 +5,7 @@ import { ROW_HEIGHT } from "@/graph/constants";
 import { laneColor } from "@/graph/palette";
 import type { RefBadge } from "@/graph/refs.types";
 import type { GraphRow, NodeKind } from "@/graph/types";
+import { replaceShortcodes } from "@/lib/emoji";
 import { cn } from "@/lib/utils";
 
 interface CommitRowProps {
@@ -60,7 +61,9 @@ export const CommitRow = memo(function CommitRow({
 			</div>
 			<div className="flex min-w-0 items-center gap-1 overflow-hidden px-1.5">
 				{badges && <RefBadges badges={badges} color={laneColor(graph.color)} />}
-				<span className={cn("truncate", strong && "font-bold")}>{subject}</span>
+				<span className={cn("truncate", strong && "font-bold")}>
+					{replaceShortcodes(subject)}
+				</span>
 			</div>
 			<div className={cell}>{date}</div>
 			<div className={cell}>{author}</div>

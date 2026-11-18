@@ -70,13 +70,16 @@ pub fn validate_ref_name(repo: &Path, kind: RefKind, name: &str) -> Result<(), G
     if name.starts_with('-') {
         return Err(GitError::new(GitErrorKind::InvalidName, name));
     }
-    let result = match kind {
-        RefKind::Branch => run_git(repo, &["check-ref-format", "--branch", name]),
-        RefKind::Tag => {
-            let full = format!("refs/tags/{name}");
-            run_git(repo, &["check-ref-format", &full])
-        }
+    // `check-ref-format --branch` expands `@{-1}` to another branch, so
+    // branches are checked as full refnames; `HEAD` is never a branch name.
+    if kind == RefKind::Branch && (name.contains("@{") || name == "HEAD") {
+        return Err(GitError::new(GitErrorKind::InvalidName, name));
+    }
+    let full = match kind {
+        RefKind::Branch => format!("refs/heads/{name}"),
+        RefKind::Tag => format!("refs/tags/{name}"),
     };
+    let result = run_git(repo, &["check-ref-format", &full]);
     match result {
         Ok(_) => Ok(()),
         Err(e) if e.kind == GitErrorKind::Failed => {
@@ -140,6 +143,19 @@ mod tests {
         }
         validate_ref_name(repo.path(), RefKind::Branch, "feat/x").unwrap();
         validate_ref_name(repo.path(), RefKind::Tag, "v1.0").unwrap();
+    }
+
+    #[test]
+    fn validate_branch_rejects_reflog_shorthand() {
+        let repo = TestRepo::new();
+        repo.commit("one", &[("a.txt", "a")]);
+        repo.git(&["checkout", "-q", "-b", "other"]);
+        repo.git(&["checkout", "-q", "main"]);
+        // `check-ref-format --branch` would expand these to another branch.
+        for bad in ["@{-1}", "main@{1}", "HEAD"] {
+            let err = validate_ref_name(repo.path(), RefKind::Branch, bad).unwrap_err();
+            assert_eq!(err.kind, GitErrorKind::InvalidName, "{bad}");
+        }
     }
 
     #[test]

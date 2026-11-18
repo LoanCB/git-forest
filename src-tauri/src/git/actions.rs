@@ -15,8 +15,21 @@ fn resolve_commit_hash(repo: &Path, rev: &str) -> Result<String, GitError> {
     Ok(out.trim().to_string())
 }
 
+fn local_branch_exists(repo: &Path, name: &str) -> Result<bool, GitError> {
+    let local = format!("refs/heads/{name}");
+    let out = run_git_allow_codes(repo, &["rev-parse", "--verify", "-q", &local], &[0, 1])?;
+    Ok(!out.trim().is_empty())
+}
+
 pub fn do_checkout_branch(repo: &Path, name: &str) -> Result<(), GitError> {
     validate_ref_name(repo, RefKind::Branch, name)?;
+    // Without this a tag or commit-ish of that name would detach HEAD.
+    if !local_branch_exists(repo, name)? {
+        return Err(GitError::new(
+            GitErrorKind::Failed,
+            format!("no local branch named {name}"),
+        ));
+    }
     run_git(repo, &["checkout", name, "--"]).map(drop)
 }
 
@@ -28,9 +41,7 @@ pub fn do_checkout_commit(repo: &Path, hash: &str) -> Result<(), GitError> {
 pub fn do_checkout_remote_branch(repo: &Path, remote: &str, name: &str) -> Result<(), GitError> {
     validate_ref_name(repo, RefKind::Branch, remote)?;
     validate_ref_name(repo, RefKind::Branch, name)?;
-    let local = format!("refs/heads/{name}");
-    let exists = run_git_allow_codes(repo, &["rev-parse", "--verify", "-q", &local], &[0, 1])?;
-    if !exists.trim().is_empty() {
+    if local_branch_exists(repo, name)? {
         return run_git(repo, &["checkout", name, "--"]).map(drop);
     }
     let target = format!("{remote}/{name}");
@@ -281,6 +292,28 @@ mod tests {
         assert!(do_add_tag(repo.path(), "light", &first, None).is_err());
         do_delete_tag(repo.path(), "light").unwrap();
         assert_eq!(repo.git(&["tag", "-l", "light"]), "");
+    }
+
+    #[test]
+    fn checkout_branch_requires_a_local_branch() {
+        let repo = TestRepo::new();
+        let first = repo.commit("one", &[("a.txt", "one")]);
+        repo.commit("two", &[("a.txt", "two")]);
+        repo.git(&["tag", "v1", &first]);
+        let err = do_checkout_branch(repo.path(), "v1").unwrap_err();
+        assert_eq!(err.kind, GitErrorKind::Failed);
+        assert_eq!(repo.git(&["branch", "--show-current"]), "main");
+    }
+
+    #[test]
+    fn previous_branch_shorthand_cannot_delete_a_branch() {
+        let repo = TestRepo::new();
+        repo.commit("one", &[("a.txt", "one")]);
+        repo.git(&["checkout", "-q", "-b", "other"]);
+        repo.git(&["checkout", "-q", "main"]);
+        let err = do_delete_branch(repo.path(), "@{-1}", true).unwrap_err();
+        assert_eq!(err.kind, GitErrorKind::InvalidName);
+        assert_eq!(branches(&repo), ["main", "other"]);
     }
 
     #[test]

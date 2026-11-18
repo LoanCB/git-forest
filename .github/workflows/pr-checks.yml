@@ -118,3 +118,21 @@ jobs:
       # Tests that rely on POSIX shell hooks are #[cfg(unix)] and skipped here.
       - run: cargo test
         working-directory: src-tauri
+
+  rust-macos:
+    name: Rust (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
+
+      # Runs the watcher on FSEvents, which Linux CI never exercises.
+      - run: cargo test
+        working-directory: src-tauri

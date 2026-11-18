@@ -21,7 +21,13 @@ pub fn run() {
             repos::add_repo,
             repos::remove_repo,
             repos::scan_repos,
-            repos::repo_exists
+            repos::repo_exists,
+            git::read::get_refs,
+            git::read::get_commits,
+            git::read::get_uncommitted,
+            git::read::get_commit_details,
+            git::read::get_file_diff,
+            git::read::resolve_commit
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -36,6 +36,16 @@ pub(crate) fn spawn_error(err: io::Error) -> GitError {
 }
 
 pub fn run_git(repo: &Path, args: &[&str]) -> Result<String, GitError> {
+    run_git_allow_codes(repo, args, &[0])
+}
+
+/// Like `run_git` but also accepts the given exit codes as success (for
+/// example `diff --no-index`, which exits 1 when the files differ).
+pub fn run_git_allow_codes(
+    repo: &Path,
+    args: &[&str],
+    ok_codes: &[i32],
+) -> Result<String, GitError> {
     // Without this check a missing directory would look like a missing git binary.
     if !repo.is_dir() {
         return Err(GitError::new(
@@ -44,7 +54,7 @@ pub fn run_git(repo: &Path, args: &[&str]) -> Result<String, GitError> {
         ));
     }
     let output = git_command(repo, args).output().map_err(spawn_error)?;
-    if output.status.success() {
+    if output.status.code().is_some_and(|c| ok_codes.contains(&c)) {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
         Err(GitError::new(

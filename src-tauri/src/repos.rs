@@ -24,10 +24,16 @@ fn store_error(err: impl std::fmt::Display) -> GitError {
 
 fn load_repos(app: &AppHandle) -> Result<Vec<RepoEntry>, GitError> {
     let store = app.store(STORE_FILE).map_err(store_error)?;
-    Ok(store
-        .get(REPOS_KEY)
-        .and_then(|v| serde_json::from_value(v).ok())
-        .unwrap_or_default())
+    parse_repos(store.get(REPOS_KEY))
+}
+
+/// A missing key is an empty list; a malformed value is an error so that a
+/// later save can never overwrite the user's list.
+fn parse_repos(value: Option<serde_json::Value>) -> Result<Vec<RepoEntry>, GitError> {
+    match value {
+        None => Ok(Vec::new()),
+        Some(v) => serde_json::from_value(v).map_err(store_error),
+    }
 }
 
 fn save_repos(app: &AppHandle, repos: &[RepoEntry]) -> Result<(), GitError> {
@@ -93,12 +99,12 @@ fn scan_dir(dir: &Path, depth: usize, max_depth: usize, found: &mut Vec<PathBuf>
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_repos(app: AppHandle) -> Result<Vec<RepoEntry>, GitError> {
     load_repos(&app)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn add_repo(app: AppHandle, path: String) -> Result<RepoEntry, GitError> {
     let dir = Path::new(&path);
     if !dir.is_dir() {
@@ -129,7 +135,7 @@ pub fn add_repo(app: AppHandle, path: String) -> Result<RepoEntry, GitError> {
     Ok(entry)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remove_repo(app: AppHandle, path: String) -> Result<(), GitError> {
     let wanted = normalize(&path);
     let mut repos = load_repos(&app)?;
@@ -137,7 +143,7 @@ pub fn remove_repo(app: AppHandle, path: String) -> Result<(), GitError> {
     save_repos(&app, &repos)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn scan_repos(root: String) -> Result<Vec<String>, GitError> {
     let root = Path::new(&root);
     if !root.is_dir() {
@@ -152,7 +158,7 @@ pub fn scan_repos(root: String) -> Result<Vec<String>, GitError> {
         .collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn repo_exists(path: String) -> bool {
     Path::new(&path).is_dir()
 }
@@ -163,6 +169,15 @@ mod tests {
 
     fn mkrepo(root: &Path, rel: &str) {
         fs::create_dir_all(root.join(rel).join(".git")).unwrap();
+    }
+
+    #[test]
+    fn parse_repos_missing_valid_and_malformed() {
+        assert!(parse_repos(None).unwrap().is_empty());
+        let ok = parse_repos(Some(serde_json::json!([{"path": "/x", "name": "x"}]))).unwrap();
+        assert_eq!(ok[0].name, "x");
+        let err = parse_repos(Some(serde_json::json!({"oops": 1}))).unwrap_err();
+        assert_eq!(err.kind, GitErrorKind::Failed);
     }
 
     #[test]

@@ -105,9 +105,15 @@ mod tests {
         repo.commit("one", &[("a.txt", "a")]);
         let index = repo.path().join(".git/index");
         let before = fs::metadata(&index).unwrap().modified().unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(20));
-        // Touch the tracked file so a plain `git status` would refresh the index.
-        fs::write(repo.path().join("a.txt"), "a").unwrap();
+        // Push the tracked file's mtime past the index's so that a plain
+        // `git status` would see stale stat data and rewrite the index.
+        let file = fs::OpenOptions::new()
+            .write(true)
+            .open(repo.path().join("a.txt"))
+            .unwrap();
+        file.set_modified(before + std::time::Duration::from_secs(10))
+            .unwrap();
+        drop(file);
         run_git(repo.path(), &["status", "--porcelain"]).unwrap();
         let after = fs::metadata(&index).unwrap().modified().unwrap();
         assert_eq!(before, after);

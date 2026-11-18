@@ -1,14 +1,19 @@
 import { create } from "zustand";
-import { addRepo, listRepos, removeRepo } from "../git/api";
-import type { RepoEntry } from "../git/types";
+import { addRepo, listRepos, removeRepo, toGitError } from "../git/api";
+import type { GitError, RepoEntry } from "../git/types";
 import { getLastRepo, setLastRepo } from "./prefs";
+
+export interface AddManyResult {
+	added: RepoEntry[];
+	failed: { path: string; error: GitError }[];
+}
 
 interface ReposState {
 	repos: RepoEntry[];
 	current: string | null;
 	load(): Promise<void>;
 	add(path: string): Promise<void>;
-	addMany(paths: string[]): Promise<void>;
+	addMany(paths: string[]): Promise<AddManyResult>;
 	remove(path: string): Promise<void>;
 	select(path: string): Promise<void>;
 }
@@ -39,9 +44,12 @@ export const useReposStore = create<ReposState>((set, get) => ({
 	async addMany(paths) {
 		// One failing path must not abort the rest of the batch.
 		const results = await Promise.allSettled(paths.map(addRepo));
-		const added = results.flatMap((r) =>
-			r.status === "fulfilled" ? [r.value] : [],
-		);
+		const added: RepoEntry[] = [];
+		const failed: AddManyResult["failed"] = [];
+		results.forEach((r, i) => {
+			if (r.status === "fulfilled") added.push(r.value);
+			else failed.push({ path: paths[i], error: toGitError(r.reason) });
+		});
 		set((s) => ({
 			repos: [
 				...s.repos,
@@ -49,6 +57,7 @@ export const useReposStore = create<ReposState>((set, get) => ({
 			],
 		}));
 		if (get().current === null && added[0]) await get().select(added[0].path);
+		return { added, failed };
 	},
 
 	async remove(path) {

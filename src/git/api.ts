@@ -10,7 +10,7 @@ import type {
 	RepoEntry,
 } from "./types";
 
-function isGitError(e: unknown): e is GitError {
+export function isGitError(e: unknown): e is GitError {
 	return (
 		typeof e === "object" &&
 		e !== null &&
@@ -18,6 +18,9 @@ function isGitError(e: unknown): e is GitError {
 		typeof (e as GitError).message === "string"
 	);
 }
+
+export const toGitError = (e: unknown): GitError =>
+	isGitError(e) ? e : { kind: "failed", message: String(e) };
 
 /** Rejects with a `GitError` whatever Tauri threw. */
 async function call<T>(

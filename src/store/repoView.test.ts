@@ -238,4 +238,56 @@ describe("useRepoView", () => {
 		expect(s.hasMore).toBe(false);
 		expect(s.loading).toBe(false);
 	});
+
+	it("drops a loadMore page computed before a refresh replaced the list", async () => {
+		let releaseMore!: () => void;
+		const gate = new Promise<void>((r) => {
+			releaseMore = r;
+		});
+		mockBackend({
+			get_commits: async ({ query }) => {
+				if (query.skip > 0) {
+					await gate;
+					return { commits: range(2, 2), hasMore: false };
+				}
+				return { commits: range(0, 2), hasMore: true };
+			},
+		});
+		await useRepoView.getState().open("/r");
+		const more = useRepoView.getState().loadMore();
+		await useRepoView.getState().refresh();
+		releaseMore();
+		await more;
+		const s = useRepoView.getState();
+		expect(s.commits.map((c) => c.hash)).toEqual(["h0", "h1"]);
+		expect(s.hasMore).toBe(true);
+		expect(s.loading).toBe(false);
+	});
+
+	it("drops a loadMore page when another repository is opened meanwhile", async () => {
+		let releaseMore!: () => void;
+		const gate = new Promise<void>((r) => {
+			releaseMore = r;
+		});
+		mockBackend({
+			get_commits: async ({ repo, query }) => {
+				if (query.skip > 0) {
+					await gate;
+					return { commits: range(50, 2), hasMore: false };
+				}
+				return {
+					commits: range(repo === "/a" ? 0 : 10, 2),
+					hasMore: repo === "/a",
+				};
+			},
+		});
+		await useRepoView.getState().open("/a");
+		const more = useRepoView.getState().loadMore();
+		await useRepoView.getState().open("/b");
+		releaseMore();
+		await more;
+		const s = useRepoView.getState();
+		expect(s.commits.map((c) => c.hash)).toEqual(["h10", "h11"]);
+		expect(s.loading).toBe(false);
+	});
 });

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { getCommits, getRefs, getUncommitted } from "../git/api";
+import { getCommits, getRefs, getUncommitted, toGitError } from "../git/api";
 import type {
 	Commit,
 	FileChange,
@@ -29,14 +29,12 @@ interface RepoViewState {
 	setShowRemotes(show: boolean): Promise<void>;
 }
 
-const toGitError = (e: unknown): GitError =>
-	typeof e === "object" && e !== null && "kind" in e && "message" in e
-		? (e as GitError)
-		: { kind: "failed", message: String(e) };
-
 // Bumped by every open() and history reload; a load that finds a different
 // value when it resumes belongs to a stale request and drops its result.
 let token = 0;
+// Bumped whenever `commits` is replaced; a loadMore computed against an older
+// list must not append to the new one.
+let listVersion = 0;
 let refreshing = false;
 let refreshQueued = false;
 let pageLoad: Promise<void> | null = null;
@@ -58,6 +56,7 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 		try {
 			const page = await getCommits(repo, query(prefs, 0, limit));
 			if (mine !== token) return;
+			listVersion++;
 			set({ commits: page.commits, hasMore: page.hasMore, loading: false });
 		} catch (e) {
 			if (mine === token) set({ error: toGitError(e), loading: false });
@@ -76,6 +75,7 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 				getUncommitted(repo),
 			]);
 			if (mine !== token) return;
+			listVersion++;
 			set({
 				refs,
 				commits: page.commits,
@@ -120,6 +120,7 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 					getUncommitted(repo),
 				]);
 				if (mine !== token) return;
+				listVersion++;
 				set({
 					refs,
 					commits: page.commits,
@@ -153,19 +154,21 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 			const { repo, prefs, commits, hasMore, loading } = get();
 			if (!repo || !hasMore || loading) return Promise.resolve();
 			const mine = token;
+			const version = listVersion;
 			const run = (async () => {
 				try {
 					const page = await getCommits(
 						repo,
 						query(prefs, commits.length, PAGE_SIZE),
 					);
-					if (mine !== token) return;
+					if (mine !== token || version !== listVersion) return;
 					set((s) => ({
 						commits: [...s.commits, ...page.commits],
 						hasMore: page.hasMore,
 					}));
 				} catch (e) {
-					if (mine === token) set({ error: toGitError(e) });
+					if (mine === token && version === listVersion)
+						set({ error: toGitError(e) });
 				}
 			})().finally(() => {
 				pageLoad = null;

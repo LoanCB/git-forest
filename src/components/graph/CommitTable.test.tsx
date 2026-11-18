@@ -95,9 +95,32 @@ it("shows an Uncommitted Changes (N) row when the working tree is dirty", () => 
 	expect(rowOf("top").querySelector("path")?.getAttribute("stroke")).toBe(
 		UNCOMMITTED_STROKE,
 	);
-	// The row comes before the first commit.
+	// The row comes before the first commit, at the top of the list.
 	const rows = [...document.querySelectorAll("[data-row]")];
 	expect(rows.indexOf(row)).toBe(0);
+	expect(row.style.transform).toBe("translateY(0px)");
+});
+
+it("gives every commit the same colour whether the tree is dirty or clean", () => {
+	// A branch tip above HEAD: the Uncommitted lane must not shift its colour.
+	const history = [
+		commit("x1", ["c1"], "other tip"),
+		commit("head1", ["c1"], "head commit"),
+		commit("c1", [], "root"),
+	];
+	const colours = () =>
+		["other tip", "head commit", "root"].map((s) =>
+			rowOf(s).querySelector("circle")?.getAttribute("stroke"),
+		);
+
+	setView({ refs: refs("head1"), commits: history, uncommitted: [] });
+	const { unmount } = render(<CommitTable />);
+	const clean = colours();
+	unmount();
+
+	setView({ refs: refs("head1"), commits: history, uncommitted: [change] });
+	render(<CommitTable />);
+	expect(colours()).toEqual(clean);
 });
 
 it("renders merge commits with the muted style", () => {
@@ -109,6 +132,8 @@ it("renders merge commits with the muted style", () => {
 	expect(rowOf("feature").className).not.toContain("text-muted-foreground");
 	// Short hashes are 8 characters long.
 	expect(within(rowOf("top")).getByText("c3aaaaaa")).toBeInTheDocument();
+	// The header sits above the list in the same scroller, not over row 1.
+	expect(rowOf("top").style.transform).toBe("translateY(0px)");
 });
 
 it("shows a Load more row when hasMore and calls loadMore on click", () => {
@@ -117,6 +142,14 @@ it("shows a Load more row when hasMore and calls loadMore on click", () => {
 	render(<CommitTable />);
 	fireEvent.click(screen.getByRole("button", { name: /load more/i }));
 	expect(loadMore).toHaveBeenCalledOnce();
+});
+
+it("renders emoji shortcodes in the description", () => {
+	setView({
+		commits: [commit("c3aaaaaaaaaa", [], "feat(graph): :sparkles: draw it")],
+	});
+	render(<CommitTable />);
+	expect(screen.getByText("feat(graph): ✨ draw it")).toBeInTheDocument();
 });
 
 it("hides the Load more row when every commit is loaded", () => {

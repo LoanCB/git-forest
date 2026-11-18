@@ -4,11 +4,10 @@ import { useTranslation } from "react-i18next";
 import { ColumnResizer } from "@/components/graph/ColumnResizer";
 import { CommitRow } from "@/components/graph/CommitRow";
 import { Button } from "@/components/ui/button";
-import type { Commit } from "@/git/types";
-import { ROW_HEIGHT, UNCOMMITTED_COLOR } from "@/graph/constants";
+import { HEADER_HEIGHT, ROW_HEIGHT } from "@/graph/constants";
 import { computeLayout } from "@/graph/layout";
 import { groupRefs } from "@/graph/refs";
-import type { GraphLayout } from "@/graph/types";
+import { withUncommitted } from "@/graph/uncommitted";
 import { formatDate } from "@/lib/format";
 import { setRepoPrefs } from "@/store/prefs";
 import type { ColumnId } from "@/store/prefs.types";
@@ -21,35 +20,6 @@ const COLUMNS: ColumnId[] = [
 	"author",
 	"commit",
 ];
-const UNCOMMITTED_HASH = "*";
-
-/**
- * Lays out the history, with the Uncommitted Changes row on top when the
- * working tree is dirty. Its line down to HEAD is greyed.
- */
-function buildLayout(
-	commits: Commit[],
-	dirty: boolean,
-	head: string | null,
-): GraphLayout {
-	if (!dirty) return computeLayout(commits);
-	const layout = computeLayout([
-		{ hash: UNCOMMITTED_HASH, parents: head ? [head] : [] },
-		...commits,
-	]);
-	const [top, ...rest] = layout.rows;
-	const lane = top.lane;
-	for (const s of top.down) s.color = UNCOMMITTED_COLOR;
-	// The lane stays reserved for HEAD until HEAD's row, so nothing else uses it.
-	for (let i = 0; i < rest.length; i++) {
-		for (const s of rest[i].up)
-			if (s.from === lane) s.color = UNCOMMITTED_COLOR;
-		if (commits[i].hash === head) break;
-		for (const s of rest[i].down)
-			if (s.from === lane && s.to === lane) s.color = UNCOMMITTED_COLOR;
-	}
-	return layout;
-}
 
 export function CommitTable() {
 	const { t, i18n } = useTranslation();
@@ -71,9 +41,10 @@ export function CommitTable() {
 
 	const head = refs?.head.commit ?? null;
 	const dirty = uncommitted.length > 0;
+	const history = useMemo(() => computeLayout(commits), [commits]);
 	const layout = useMemo(
-		() => buildLayout(commits, dirty, head),
-		[commits, dirty, head],
+		() => (dirty ? withUncommitted(history, commits, head) : history),
+		[history, commits, dirty, head],
 	);
 	const badges = useMemo(
 		() => (refs ? groupRefs(refs, prefs.showRemotes) : new Map()),
@@ -92,6 +63,8 @@ export function CommitTable() {
 		count,
 		getScrollElement: () => scrollRef.current,
 		estimateSize: () => ROW_HEIGHT,
+		// The header shares the scroller, so the list starts below it.
+		scrollMargin: HEADER_HEIGHT,
 		overscan: 20,
 	});
 
@@ -136,7 +109,7 @@ export function CommitTable() {
 		if (index < offset)
 			return (
 				<CommitRow
-					key={UNCOMMITTED_HASH}
+					key="uncommitted"
 					graph={graph}
 					laneCount={layout.laneCount}
 					node="uncommitted"
@@ -176,8 +149,8 @@ export function CommitTable() {
 		>
 			<div style={{ minWidth }}>
 				<div
-					className="sticky top-0 z-20 grid h-[30px] items-center border-b bg-background font-bold"
-					style={{ gridTemplateColumns: columns }}
+					className="sticky top-0 z-20 grid items-center border-b bg-background font-bold"
+					style={{ height: HEADER_HEIGHT, gridTemplateColumns: columns }}
 				>
 					{COLUMNS.map((c) => (
 						<div
@@ -202,7 +175,7 @@ export function CommitTable() {
 				>
 					{virtualizer
 						.getVirtualItems()
-						.map((item) => renderRow(item.index, item.start))}
+						.map((item) => renderRow(item.index, item.start - HEADER_HEIGHT))}
 				</div>
 			</div>
 		</div>

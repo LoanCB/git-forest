@@ -332,4 +332,57 @@ describe("useRepoView", () => {
 		expect(s.commits.map((c) => c.hash)).toEqual(["h10", "h11"]);
 		expect(s.loading).toBe(false);
 	});
+
+	describe("branch filter of refs that no longer exist", () => {
+		const liveRefs = (): Refs => ({
+			...refs(),
+			locals: [{ name: "main", commit: "h0", upstream: null }],
+			remotes: [{ remote: "origin", name: "dev", commit: "h0", isHead: false }],
+			remoteNames: ["origin"],
+		});
+		const stored = (branches: string[]) =>
+			data.set("repo:/r", { branches, showRemotes: true });
+
+		it("open drops the missing names, queries and persists the rest", async () => {
+			stored(["main", "gone", "origin/dev", "origin/gone"]);
+			mockBackend({ get_refs: liveRefs });
+			await useRepoView.getState().open("/r");
+			expect(lastCommitCall().query.refs).toEqual(["main", "origin/dev"]);
+			expect(useRepoView.getState().prefs.branches).toEqual([
+				"main",
+				"origin/dev",
+			]);
+			expect(data.get("repo:/r")).toMatchObject({
+				branches: ["main", "origin/dev"],
+			});
+			expect(useRepoView.getState().error).toBeNull();
+		});
+
+		it("open falls back to Show All when no name is left", async () => {
+			stored(["gone"]);
+			mockBackend({ get_refs: liveRefs });
+			await useRepoView.getState().open("/r");
+			expect(lastCommitCall().query.refs).toBeNull();
+			expect(useRepoView.getState().prefs.branches).toBeNull();
+			expect(data.get("repo:/r")).toMatchObject({ branches: null });
+		});
+
+		it("refresh drops a branch deleted while the repository is open", async () => {
+			stored(["main", "feat"]);
+			let current: Refs = {
+				...liveRefs(),
+				locals: [
+					{ name: "main", commit: "h0", upstream: null },
+					{ name: "feat", commit: "h0", upstream: null },
+				],
+			};
+			mockBackend({ get_refs: () => current });
+			await useRepoView.getState().open("/r");
+			expect(lastCommitCall().query.refs).toEqual(["main", "feat"]);
+			current = liveRefs();
+			await useRepoView.getState().refresh();
+			expect(lastCommitCall().query.refs).toEqual(["main"]);
+			expect(data.get("repo:/r")).toMatchObject({ branches: ["main"] });
+		});
+	});
 });

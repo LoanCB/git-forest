@@ -53,7 +53,35 @@ const query = (prefs: RepoPrefs, skip: number, limit: number): LogQuery => ({
 	limit,
 });
 
+/**
+ * `branches` without the names absent from `refs` (deleted or renamed since
+ * they were chosen); `null` (Show All) when none is left. Returns `branches`
+ * itself when nothing is dropped.
+ */
+function liveBranches(branches: string[] | null, refs: Refs): string[] | null {
+	if (!branches) return branches;
+	const live = new Set([
+		...refs.locals.map((b) => b.name),
+		...refs.remotes.map((b) => `${b.remote}/${b.name}`),
+	]);
+	const kept = branches.filter((b) => live.has(b));
+	if (kept.length === branches.length) return branches;
+	return kept.length > 0 ? kept : null;
+}
+
 export const useRepoView = create<RepoViewState>((set, get) => {
+	/** Persists `prefs` without the branches missing from `refs`, if any. */
+	async function pruneBranches(
+		repo: string,
+		prefs: RepoPrefs,
+		refs: Refs,
+	): Promise<RepoPrefs> {
+		const branches = liveBranches(prefs.branches, refs);
+		return branches === prefs.branches
+			? prefs
+			: setRepoPrefs(repo, { branches });
+	}
+
 	/** Reloads the first `limit` commits for the current prefs, replacing the list. */
 	async function reloadHistory(limit: number) {
 		const { repo, prefs } = get();
@@ -71,19 +99,24 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 	}
 
 	async function refreshOnce() {
-		const { repo, prefs, commits } = get();
+		const { repo, commits } = get();
 		if (!repo) return;
 		const mine = token;
 		try {
 			const limit = Math.max(PAGE_SIZE, commits.length);
-			const [refs, page, uncommitted] = await Promise.all([
+			// Refs first: a filtered branch may have been deleted meanwhile.
+			const [refs, uncommitted] = await Promise.all([
 				getRefs(repo),
-				getCommits(repo, query(prefs, 0, limit)),
 				getUncommitted(repo),
 			]);
 			if (mine !== token) return;
+			const prefs = await pruneBranches(repo, get().prefs, refs);
+			if (mine !== token) return;
+			const page = await getCommits(repo, query(prefs, 0, limit));
+			if (mine !== token) return;
 			listVersion++;
 			set({
+				prefs,
 				refs,
 				commits: page.commits,
 				hasMore: page.hasMore,
@@ -120,14 +153,17 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 				scrollTarget: null,
 			});
 			try {
-				const prefs = await getRepoPrefs(repo);
-				if (mine !== token) return;
-				set({ prefs });
-				const [refs, page, uncommitted] = await Promise.all([
+				const [stored, refs, uncommitted] = await Promise.all([
+					getRepoPrefs(repo),
 					getRefs(repo),
-					getCommits(repo, query(prefs, 0, PAGE_SIZE)),
 					getUncommitted(repo),
 				]);
+				if (mine !== token) return;
+				// A filtered branch deleted or renamed since would fail the log.
+				const prefs = await pruneBranches(repo, stored, refs);
+				if (mine !== token) return;
+				set({ prefs });
+				const page = await getCommits(repo, query(prefs, 0, PAGE_SIZE));
 				if (mine !== token) return;
 				listVersion++;
 				set({

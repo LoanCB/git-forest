@@ -1,6 +1,12 @@
-import { CloudDownloadIcon, RotateCwIcon, SettingsIcon } from "lucide-react";
+import {
+	BrushCleaningIcon,
+	CloudDownloadIcon,
+	RotateCwIcon,
+	SettingsIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { PruneBranchesDialog } from "@/components/actions/PruneBranchesDialog";
 import { SettingsDialog } from "@/components/layout/SettingsDialog";
 import { ManageReposDialog } from "@/components/repos/ManageReposDialog";
 import { RepoSelect } from "@/components/repos/RepoSelect";
@@ -15,7 +21,7 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { fetch as gitFetch } from "@/git/api";
-import { useOperations } from "@/store/operations";
+import { selectLocalBusy, useOperations } from "@/store/operations";
 import { useRepoView } from "@/store/repoView";
 
 function runFetch(prune: boolean, label: string) {
@@ -32,9 +38,11 @@ export function Toolbar() {
 	const showRemotes = useRepoView((s) => s.prefs.showRemotes);
 	const [manageOpen, setManageOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const [pruneOpen, setPruneOpen] = useState(false);
 	const searchRef = useRef<HTMLInputElement>(null);
 	const viewError = useRepoView((s) => s.error);
 	const hasRepo = repo !== null;
+	const busy = useOperations(selectLocalBusy);
 	// Nothing to fetch from a folder that is gone or no longer a repository.
 	const canFetch =
 		hasRepo &&
@@ -106,6 +114,16 @@ export function Toolbar() {
 				<Button
 					variant="ghost"
 					size="icon-sm"
+					aria-label={t("toolbar.pruneBranches")}
+					title={t("toolbar.pruneBranches")}
+					disabled={!canFetch || busy}
+					onClick={() => setPruneOpen(true)}
+				>
+					<BrushCleaningIcon />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
 					aria-label={t("toolbar.settings")}
 					title={t("toolbar.settings")}
 					onClick={() => setSettingsOpen(true)}
@@ -125,6 +143,9 @@ export function Toolbar() {
 			</div>
 			<ManageReposDialog open={manageOpen} onOpenChange={setManageOpen} />
 			<SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+			{pruneOpen && repo && (
+				<PruneBranchesDialog repo={repo} onClose={() => setPruneOpen(false)} />
+			)}
 		</header>
 	);
 }

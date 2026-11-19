@@ -7,6 +7,7 @@ import {
 	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { copyText } from "@/lib/clipboard";
 import { useActionDialog } from "@/store/actionDialog";
 import { selectLocalBusy, useOperations } from "@/store/operations";
 
@@ -45,9 +46,7 @@ export function CommitContextMenu({ hash, children }: CommitContextMenuProps) {
 					{t("actions.commit.addTag")}
 				</ContextMenuItem>
 				<ContextMenuSeparator />
-				<ContextMenuItem
-					onClick={() => void navigator.clipboard?.writeText(hash)}
-				>
+				<ContextMenuItem onClick={() => void copyText(hash)}>
 					{t("actions.copyHash")}
 				</ContextMenuItem>
 			</ContextMenuContent>

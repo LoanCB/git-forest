@@ -22,6 +22,36 @@
 					{
 						"en": "Long histories load as you scroll: the next commits arrive on their own when you near the end of the list, with no button to click.",
 						"fr": "Les longs historiques se chargent au défilement : les commits suivants arrivent d'eux-mêmes quand on approche de la fin de la liste, sans bouton à cliquer."
+					},
+					{
+						"en": "Right-click a branch, remote branch or tag to copy its name.",
+						"fr": "Clic droit sur une branche, une branche distante ou un tag pour copier son nom."
+					},
+					{
+						"en": "A toolbar button deletes the local branches already merged into the current branch, after confirmation.",
+						"fr": "Un bouton de la barre d'outils supprime, après confirmation, les branches locales déjà fusionnées dans la branche courante."
+					},
+					{
+						"en": "Smoother graph: a branch changing lane curves over a whole row.",
+						"fr": "Graphe plus doux : une branche qui change de colonne s'incurve sur toute une ligne."
+					}
+				],
+				"fixes": [
+					{
+						"en": "Busy graphs no longer hide their rightmost branches: lanes tighten, then the Graph column widens.",
+						"fr": "Les graphes chargés ne cachent plus leurs branches de droite : les colonnes se resserrent, puis la colonne Graphe s'élargit."
+					},
+					{
+						"en": "The commit table no longer scrolls sideways by a few pixels.",
+						"fr": "Le tableau des commits ne défile plus de quelques pixels à l'horizontale."
+					},
+					{
+						"en": "The tag type list and other controls follow the dark theme.",
+						"fr": "La liste du type de tag et les autres contrôles suivent le thème sombre."
+					},
+					{
+						"en": "Copy hash works in the Linux app.",
+						"fr": "« Copier le hash » fonctionne dans l'application Linux."
 					}
 				]
 			}

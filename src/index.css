@@ -57,5 +57,10 @@
 	}
 	html {
 		@apply font-sans;
+		/* Native controls (scrollbars, date pickers…) follow the app theme. */
+		color-scheme: light;
+	}
+	html.dark {
+		color-scheme: dark;
 	}
 }

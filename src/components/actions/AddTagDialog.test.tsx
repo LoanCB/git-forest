@@ -27,7 +27,7 @@ const submit = () =>
 
 it("AddTagDialog: annotated by default, message optional, Push to remote pushes after tagging", async () => {
 	const onClose = renderDialog();
-	expect(screen.getByLabelText("Type:")).toHaveValue("annotated");
+	expect(screen.getByLabelText("Type:")).toHaveTextContent("Annotated");
 	expect(screen.getByRole("button", { name: "Add Tag" })).toBeDisabled();
 
 	typeName("v1.0");
@@ -54,9 +54,14 @@ it("AddTagDialog: annotated by default, message optional, Push to remote pushes 
 
 it("AddTagDialog: a lightweight tag sends no message and nothing is pushed unless asked", async () => {
 	const onClose = renderDialog();
-	fireEvent.change(screen.getByLabelText("Type:"), {
-		target: { value: "lightweight" },
-	});
+	fireEvent.click(screen.getByLabelText("Type:"));
+	const option = await screen.findByRole("option", { name: "Lightweight" });
+	fireEvent.pointerDown(option);
+	fireEvent.pointerUp(option);
+	fireEvent.click(option);
+	await waitFor(() =>
+		expect(screen.getByLabelText("Type:")).toHaveTextContent("Lightweight"),
+	);
 	typeName("light");
 	submit();
 	await waitFor(() => expect(onClose).toHaveBeenCalled());

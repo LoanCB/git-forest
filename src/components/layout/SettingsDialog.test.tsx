@@ -72,5 +72,8 @@ it("switching to the beta channel saves it and re-checks for updates", async () 
 it("opens the changelog from the dialog", async () => {
 	renderDialog();
 	fireEvent.click(screen.getByRole("button", { name: "What's new" }));
-	expect(await screen.findByText("Latest version")).toBeInTheDocument();
+	// The changelog content changes with each release; its dialog does not.
+	expect(
+		await screen.findByText("The changes in Git Forest."),
+	).toBeInTheDocument();
 });

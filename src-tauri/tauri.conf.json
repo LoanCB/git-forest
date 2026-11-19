@@ -35,7 +35,7 @@
 	},
 	"plugins": {
 		"updater": {
-			"pubkey": "REPLACE_WITH_PUBKEY",
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZCQkRCQkFBQ0JCNjM3RDQKUldUVU43YkxxcnU5KzdXTFBkT3FLV1YzMzVRNEl4cXRBa0xpZWpiSHJFMWZ5OGtsaStadXU4U1IK",
 			"endpoints": [
 				"https://github.com/LoanCB/git-forest/releases/latest/download/latest.json"
 			]

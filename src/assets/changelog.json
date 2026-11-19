@@ -1,10 +1,10 @@
 {
-	"generatedAt": "2026-11-18",
+	"generatedAt": "2026-11-19",
 	"versions": [
 		{
-			"version": "Unreleased",
-			"tag": null,
-			"date": null,
+			"version": "0.1.0",
+			"tag": "v0.1.0",
+			"date": "2026-11-19",
 			"changes": {
 				"features": [
 					{

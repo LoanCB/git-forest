@@ -1,0 +1,22 @@
+{
+	"generatedAt": "2026-11-18",
+	"versions": [
+		{
+			"version": "Unreleased",
+			"tag": null,
+			"date": null,
+			"changes": {
+				"features": [
+					{
+						"en": "First release: graph, branches, tags, fetch, push",
+						"fr": "Première version : graphe, branches, tags, fetch, push"
+					},
+					{
+						"en": "The commit graph: one coloured line per branch with a dot per commit and a hollow circle for HEAD, branch, remote and tag badges before each message, greyed merge commits, an Uncommitted Changes row on top, resizable columns, and a Load more row for long histories.",
+						"fr": "Le graphe des commits : un trait coloré par branche avec un point par commit et un cercle creux pour HEAD, des badges de branches, de remotes et de tags avant chaque message, des commits de merge grisés, une ligne « Modifications non validées » en tête, des colonnes redimensionnables et une ligne « Charger plus » pour les longs historiques."
+					}
+				]
+			}
+		}
+	]
+}

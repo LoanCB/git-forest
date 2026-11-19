@@ -4,8 +4,10 @@ import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
+	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { copyText } from "@/lib/clipboard";
 import { useActionDialog } from "@/store/actionDialog";
 import { selectLocalBusy, useOperations } from "@/store/operations";
 import { checkoutRemote } from "./checkout";
@@ -46,6 +48,10 @@ export function RemoteBranchContextMenu({
 					}
 				>
 					{t("actions.branch.deleteRemote")}
+				</ContextMenuItem>
+				<ContextMenuSeparator />
+				<ContextMenuItem onClick={() => void copyText(`${remote}/${name}`)}>
+					{t("actions.copyName")}
 				</ContextMenuItem>
 			</ContextMenuContent>
 		</ContextMenu>

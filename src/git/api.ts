@@ -43,6 +43,9 @@ export const scanRepos = (root: string) =>
 	call<string[]>("scan_repos", { root });
 
 export const getRefs = (repo: string) => call<Refs>("get_refs", { repo });
+/** Local branches merged into HEAD, without the checked-out one. */
+export const getMergedBranches = (repo: string) =>
+	call<string[]>("get_merged_branches", { repo });
 export const getCommits = (repo: string, query: LogQuery) =>
 	call<CommitPage>("get_commits", { repo, query });
 export const getUncommitted = (repo: string) =>

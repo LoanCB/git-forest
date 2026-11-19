@@ -32,6 +32,7 @@ pub fn run() {
             git::read::get_commit_details,
             git::read::get_file_diff,
             git::read::resolve_commit,
+            git::read::get_merged_branches,
             git::actions::checkout_branch,
             git::actions::checkout_commit,
             git::actions::checkout_remote_branch,

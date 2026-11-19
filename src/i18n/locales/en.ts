@@ -22,6 +22,7 @@ const en = {
 		},
 	},
 	toolbar: {
+		pruneBranches: "Delete merged branches",
 		repo: "Repo:",
 		branches: "Branches:",
 		showAll: "Show All",
@@ -86,7 +87,7 @@ const en = {
 			commit: "Commit",
 		},
 		uncommitted: "Uncommitted Changes ({{count}})",
-		loadMore: "Load more commits",
+		loadingMore: "Loading more commits…",
 		commitNotInView: "Commit not in the current view",
 		resizeColumn: "Resize column {{column}}",
 	},
@@ -114,6 +115,7 @@ const en = {
 		cancel: "Cancel",
 		close: "Close",
 		copyHash: "Copy hash",
+		copyName: "Copy name",
 		fetchAndPrune: "Fetch & prune",
 		errorTitle: "{{label}} failed — {{repo}}",
 		operations: "Operations in progress",
@@ -187,7 +189,18 @@ const en = {
 			noRemote: "This repository has no remote",
 			submit: "Push",
 		},
+		pruneDialog: {
+			title: "Delete merged branches",
+			description:
+				"Local branches already merged into the current branch. Git deletes them without losing any work; main, master and develop are left unticked.",
+			loading: "Looking for merged branches…",
+			none: "No local branch is merged into the current branch.",
+			confirm_one: "Delete {{count}} branch",
+			confirm_other: "Delete {{count}} branches",
+		},
 		label: {
+			pruneBranches_one: "Delete {{count}} merged branch",
+			pruneBranches_other: "Delete {{count}} merged branches",
 			checkout: "Checkout {{name}}",
 			checkoutCommit: "Checkout {{hash}}",
 			createBranch: "Create branch {{name}}",

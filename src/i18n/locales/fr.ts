@@ -23,6 +23,7 @@ const fr: typeof en = {
 		},
 	},
 	toolbar: {
+		pruneBranches: "Supprimer les branches fusionnées",
 		repo: "Dépôt :",
 		branches: "Branches :",
 		showAll: "Tout afficher",
@@ -87,7 +88,7 @@ const fr: typeof en = {
 			commit: "Commit",
 		},
 		uncommitted: "Modifications non validées ({{count}})",
-		loadMore: "Charger plus de commits",
+		loadingMore: "Chargement des commits suivants…",
 		commitNotInView: "Commit absent de la vue actuelle",
 		resizeColumn: "Redimensionner la colonne {{column}}",
 	},
@@ -116,6 +117,7 @@ const fr: typeof en = {
 		cancel: "Annuler",
 		close: "Fermer",
 		copyHash: "Copier le hash",
+		copyName: "Copier le nom",
 		fetchAndPrune: "Fetch & prune",
 		errorTitle: "Échec : {{label}} — {{repo}}",
 		operations: "Opérations en cours",
@@ -189,7 +191,18 @@ const fr: typeof en = {
 			noRemote: "Ce dépôt n'a aucun remote",
 			submit: "Push",
 		},
+		pruneDialog: {
+			title: "Supprimer les branches fusionnées",
+			description:
+				"Branches locales déjà fusionnées dans la branche courante. Git les supprime sans perte de travail ; main, master et develop sont décochées par défaut.",
+			loading: "Recherche des branches fusionnées…",
+			none: "Aucune branche locale n’est fusionnée dans la branche courante.",
+			confirm_one: "Supprimer {{count}} branche",
+			confirm_other: "Supprimer {{count}} branches",
+		},
 		label: {
+			pruneBranches_one: "Supprimer {{count}} branche fusionnée",
+			pruneBranches_other: "Supprimer {{count}} branches fusionnées",
 			checkout: "Checkout de {{name}}",
 			checkoutCommit: "Checkout de {{hash}}",
 			createBranch: "Création de la branche {{name}}",

@@ -4,8 +4,10 @@ import {
 	ContextMenu,
 	ContextMenuContent,
 	ContextMenuItem,
+	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { copyText } from "@/lib/clipboard";
 import { useActionDialog } from "@/store/actionDialog";
 import { selectLocalBusy, useOperations } from "@/store/operations";
 
@@ -35,6 +37,10 @@ export function TagContextMenu({ name, children }: TagContextMenuProps) {
 					onClick={() => open({ kind: "deleteTag", name })}
 				>
 					{t("actions.tag.delete")}
+				</ContextMenuItem>
+				<ContextMenuSeparator />
+				<ContextMenuItem onClick={() => void copyText(name)}>
+					{t("actions.copyName")}
 				</ContextMenuItem>
 			</ContextMenuContent>
 		</ContextMenu>

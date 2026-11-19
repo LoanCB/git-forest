@@ -137,12 +137,23 @@ it("renders merge commits with the muted style", () => {
 	expect(rowOf("top").style.transform).toBe("translateY(0px)");
 });
 
-it("shows a Load more row when hasMore and calls loadMore on click", () => {
+it("loads the next page once the end of the list is rendered", () => {
 	const loadMore = vi.fn(async () => {});
 	setView({ hasMore: true, loadMore });
 	render(<CommitTable />);
-	fireEvent.click(screen.getByRole("button", { name: /load more/i }));
-	expect(loadMore).toHaveBeenCalledOnce();
+	expect(loadMore).toHaveBeenCalled();
+	expect(screen.getByText(/loading more commits/i)).toBeInTheDocument();
+});
+
+it("does not load more pages after a page failed", () => {
+	const loadMore = vi.fn(async () => {});
+	setView({
+		hasMore: true,
+		loadMore,
+		error: { kind: "failed", message: "boom" },
+	});
+	render(<CommitTable />);
+	expect(loadMore).not.toHaveBeenCalled();
 });
 
 it("renders emoji shortcodes in the description", () => {
@@ -153,10 +164,12 @@ it("renders emoji shortcodes in the description", () => {
 	expect(screen.getByText("feat(graph): ✨ draw it")).toBeInTheDocument();
 });
 
-it("hides the Load more row when every commit is loaded", () => {
-	setView({ hasMore: false });
+it("neither loads nor shows a loading row when every commit is loaded", () => {
+	const loadMore = vi.fn(async () => {});
+	setView({ hasMore: false, loadMore });
 	render(<CommitTable />);
-	expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
+	expect(loadMore).not.toHaveBeenCalled();
+	expect(screen.queryByText(/loading more commits/i)).toBeNull();
 });
 
 it("draws HEAD's node as a hollow circle", () => {

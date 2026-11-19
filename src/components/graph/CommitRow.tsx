@@ -4,6 +4,7 @@ import { GraphCell } from "@/components/graph/GraphCell";
 import { RefBadges } from "@/components/graph/RefBadges";
 import { ROW_HEIGHT } from "@/graph/constants";
 import { laneColor } from "@/graph/palette";
+import type { GraphPath } from "@/graph/paths.types";
 import type { RefBadge } from "@/graph/refs.types";
 import type { GraphRow, NodeKind } from "@/graph/types";
 import { replaceShortcodes } from "@/lib/emoji";
@@ -11,7 +12,9 @@ import { cn } from "@/lib/utils";
 
 interface CommitRowProps {
 	graph: GraphRow;
+	paths: GraphPath[];
 	laneCount: number;
+	laneWidth: number;
 	node: NodeKind;
 	/** CSS grid template shared with the header. */
 	columns: string;
@@ -37,7 +40,9 @@ const cell = "truncate px-1.5";
 
 export const CommitRow = memo(function CommitRow({
 	graph,
+	paths,
 	laneCount,
+	laneWidth,
 	node,
 	columns,
 	top,
@@ -84,7 +89,13 @@ export const CommitRow = memo(function CommitRow({
 			style={style}
 		>
 			<div className="h-full overflow-hidden pl-1.5">
-				<GraphCell row={graph} laneCount={laneCount} node={node} />
+				<GraphCell
+					row={graph}
+					paths={paths}
+					laneCount={laneCount}
+					laneWidth={laneWidth}
+					node={node}
+				/>
 			</div>
 			<div className="flex min-w-0 items-center gap-1 overflow-hidden px-1.5">
 				{badges && <RefBadges badges={badges} color={laneColor(graph.color)} />}

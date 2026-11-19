@@ -10,6 +10,13 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { addTag, pushTag } from "@/git/api";
 import { selectLocalBusy, useOperations } from "@/store/operations";
 import { useRepoView } from "@/store/repoView";
@@ -31,6 +38,10 @@ export function AddTagDialog({
 	const { t } = useTranslation();
 	const remotes = useRepoView((s) => s.refs?.remoteNames ?? []);
 	const busy = useOperations(selectLocalBusy);
+	const typeItems = [
+		{ value: "annotated", label: t("actions.addTagDialog.annotated") },
+		{ value: "lightweight", label: t("actions.addTagDialog.lightweight") },
+	];
 	const [name, setName] = useState("");
 	const [annotated, setAnnotated] = useState(true);
 	const [message, setMessage] = useState("");
@@ -97,19 +108,22 @@ export function AddTagDialog({
 					</div>
 					<div className={fieldRow}>
 						<label htmlFor="tag-type">{t("actions.addTagDialog.type")}</label>
-						<select
-							id="tag-type"
+						<Select
+							items={typeItems}
 							value={annotated ? "annotated" : "lightweight"}
-							onChange={(e) => setAnnotated(e.target.value === "annotated")}
-							className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm dark:bg-input/30"
+							onValueChange={(v) => setAnnotated(v === "annotated")}
 						>
-							<option value="annotated">
-								{t("actions.addTagDialog.annotated")}
-							</option>
-							<option value="lightweight">
-								{t("actions.addTagDialog.lightweight")}
-							</option>
-						</select>
+							<SelectTrigger id="tag-type" className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{typeItems.map((item) => (
+									<SelectItem key={item.value} value={item.value}>
+										{item.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 					<div className={fieldRow}>
 						<label htmlFor="tag-message">

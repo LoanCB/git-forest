@@ -410,6 +410,32 @@ pub fn read_resolve_commit(repo: &Path, rev: &str) -> Result<Option<String>, Git
         .filter(|s| !s.is_empty()))
 }
 
+/// Local branches whose tip is reachable from HEAD, without the checked-out
+/// one: what `git branch -d` can delete without losing work.
+pub fn read_merged_branches(repo: &Path) -> Result<Vec<String>, GitError> {
+    if head_commit(repo)?.is_none() {
+        return Ok(Vec::new());
+    }
+    let current = run_git_opt(repo, &["symbolic-ref", "-q", "--short", "HEAD"])?
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+    let out = run_git(
+        repo,
+        &[
+            "for-each-ref",
+            "--merged=HEAD",
+            "--format=%(refname:short)",
+            "refs/heads/",
+        ],
+    )?;
+    Ok(out
+        .lines()
+        .map(str::trim)
+        .filter(|name| !name.is_empty() && *name != current)
+        .map(str::to_string)
+        .collect())
+}
+
 #[tauri::command(async)]
 pub fn get_refs(app: AppHandle, repo: String) -> Result<Refs, GitError> {
     read_refs(&resolve_repo(&app, &repo)?)
@@ -457,6 +483,11 @@ pub fn resolve_commit(
     rev: String,
 ) -> Result<Option<String>, GitError> {
     read_resolve_commit(&resolve_repo(&app, &repo)?, &rev)
+}
+
+#[tauri::command(async)]
+pub fn get_merged_branches(app: AppHandle, repo: String) -> Result<Vec<String>, GitError> {
+    read_merged_branches(&resolve_repo(&app, &repo)?)
 }
 
 #[cfg(test)]
@@ -769,5 +800,24 @@ mod tests {
         let target = DiffTarget::Commit { hash: root };
         let diff = read_file_diff(repo.path(), &target, "a.txt", None).unwrap();
         assert!(diff.starts_with("diff --git"), "{diff}");
+    }
+
+    #[test]
+    fn merged_branches_skip_the_current_and_unmerged_ones() {
+        let repo = TestRepo::new();
+        repo.commit("c1", &[("a.txt", "a")]);
+        repo.git(&["branch", "done"]);
+        repo.git(&["checkout", "-q", "-b", "wip"]);
+        repo.commit("c2", &[("b.txt", "b")]);
+        repo.git(&["checkout", "-q", "-"]);
+        let current = repo.git(&["symbolic-ref", "--short", "HEAD"]);
+        let merged = read_merged_branches(repo.path()).unwrap();
+        assert_eq!(merged, vec!["done".to_string()], "current: {current}");
+    }
+
+    #[test]
+    fn merged_branches_of_an_empty_repo_is_empty() {
+        let repo = TestRepo::new();
+        assert!(read_merged_branches(repo.path()).unwrap().is_empty());
     }
 }

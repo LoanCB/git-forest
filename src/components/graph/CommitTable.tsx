@@ -7,12 +7,13 @@ import {
 } from "@/components/details/CommitDetailsPanel";
 import { ColumnResizer } from "@/components/graph/ColumnResizer";
 import { CommitRow } from "@/components/graph/CommitRow";
-import { Button } from "@/components/ui/button";
 import { HEADER_HEIGHT, ROW_HEIGHT } from "@/graph/constants";
 import { computeLayout } from "@/graph/layout";
+import { rowPaths } from "@/graph/paths";
 import { groupRefs } from "@/graph/refs";
 import { withUncommitted } from "@/graph/uncommitted";
 import { COLUMNS, useColumnWidths } from "@/hooks/useColumnWidths";
+import { useLoadMoreOnScroll } from "@/hooks/useLoadMoreOnScroll";
 import { formatDate } from "@/lib/format";
 import { useRepoView } from "@/store/repoView";
 import { useSearch } from "@/store/search";
@@ -27,14 +28,7 @@ export function CommitTable() {
 	const commits = useRepoView((s) => s.commits);
 	const uncommitted = useRepoView((s) => s.uncommitted);
 	const hasMore = useRepoView((s) => s.hasMore);
-	const loading = useRepoView((s) => s.loading);
 	const prefs = useRepoView((s) => s.prefs);
-	const loadMore = useRepoView((s) => s.loadMore);
-
-	const { widths, columns, minWidth, resize, save } = useColumnWidths(
-		repo,
-		prefs,
-	);
 
 	const head = refs?.head.commit ?? null;
 	const dirty = uncommitted.length > 0;
@@ -42,6 +36,15 @@ export function CommitTable() {
 	const layout = useMemo(
 		() => (dirty ? withUncommitted(history, commits, head) : history),
 		[history, commits, dirty, head],
+	);
+	const { widths, columns, minWidth, resize, save, laneWidth } =
+		useColumnWidths(repo, prefs, layout.laneCount);
+	const paths = useMemo(
+		() =>
+			layout.rows.map((row, i) =>
+				rowPaths(row, layout.rows[i - 1], layout.rows[i + 1], laneWidth),
+			),
+		[layout, laneWidth],
 	);
 	const badges = useMemo(
 		() => (refs ? groupRefs(refs, prefs.showRemotes) : new Map()),
@@ -99,6 +102,12 @@ export function CommitTable() {
 		scrollPaddingStart: HEADER_HEIGHT,
 		overscan: 20,
 	});
+
+	const virtualItems = virtualizer.getVirtualItems();
+	useLoadMoreOnScroll(
+		virtualItems[virtualItems.length - 1]?.index ?? -1,
+		count + (panelIndex < 0 ? 0 : 1),
+	);
 
 	useEffect(() => {
 		if (expanded === null) return;
@@ -190,14 +199,9 @@ export function CommitTable() {
 					className="absolute inset-x-0 top-0 flex items-center justify-center"
 					style={{ height: ROW_HEIGHT, transform: `translateY(${top}px)` }}
 				>
-					<Button
-						variant="ghost"
-						size="xs"
-						disabled={loading}
-						onClick={() => void loadMore()}
-					>
-						{t("graph.loadMore")}
-					</Button>
+					<span className="text-[13px] text-muted-foreground">
+						{t("graph.loadingMore")}
+					</span>
 				</div>
 			);
 		const graph = layout.rows[index];
@@ -206,7 +210,9 @@ export function CommitTable() {
 				<CommitRow
 					key="uncommitted"
 					graph={graph}
+					paths={paths[index]}
 					laneCount={layout.laneCount}
+					laneWidth={laneWidth}
 					node="uncommitted"
 					columns={columns}
 					top={top}
@@ -226,7 +232,9 @@ export function CommitTable() {
 			<CommitRow
 				key={commit.hash}
 				graph={graph}
+				paths={paths[index]}
 				laneCount={layout.laneCount}
+				laneWidth={laneWidth}
 				node={commit.hash === head ? "head" : "commit"}
 				columns={columns}
 				top={top}
@@ -276,6 +284,7 @@ export function CommitTable() {
 									})}
 									onResize={(w) => resize(c, w)}
 									onResizeEnd={(w) => void save(c, w)}
+									atEdge={c === COLUMNS[COLUMNS.length - 1]}
 								/>
 							</div>
 						))}
@@ -284,9 +293,9 @@ export function CommitTable() {
 						className="relative"
 						style={{ height: virtualizer.getTotalSize() }}
 					>
-						{virtualizer
-							.getVirtualItems()
-							.map((item) => renderRow(item.index, item.start - HEADER_HEIGHT))}
+						{virtualItems.map((item) =>
+							renderRow(item.index, item.start - HEADER_HEIGHT),
+						)}
 					</div>
 				</div>
 			</div>

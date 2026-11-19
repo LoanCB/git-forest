@@ -10,6 +10,8 @@ interface ColumnResizerProps {
 	onResize(width: number): void;
 	/** Called once with the final width, to persist it. */
 	onResizeEnd(width: number): void;
+	/** On the table's right edge: the handle stays inside it, or it would overflow. */
+	atEdge?: boolean;
 }
 
 export function ColumnResizer({
@@ -17,6 +19,7 @@ export function ColumnResizer({
 	label,
 	onResize,
 	onResizeEnd,
+	atEdge = false,
 }: ColumnResizerProps) {
 	const drag = useRef<{ x: number; width: number; last: number } | null>(null);
 
@@ -54,7 +57,7 @@ export function ColumnResizer({
 			aria-label={label}
 			aria-valuenow={width}
 			tabIndex={0}
-			className="absolute top-0 right-0 z-10 h-full w-1.5 translate-x-1/2 cursor-col-resize touch-none outline-none hover:bg-ring/60 focus-visible:bg-ring"
+			className={`absolute top-0 right-0 z-10 h-full w-1.5 ${atEdge ? "" : "translate-x-1/2"} cursor-col-resize touch-none outline-none hover:bg-ring/60 focus-visible:bg-ring`}
 			onPointerDown={onPointerDown}
 			onPointerMove={onPointerMove}
 			onPointerUp={onPointerUp}

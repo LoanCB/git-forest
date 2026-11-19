@@ -230,6 +230,8 @@ export function dispatch(
 			return details(args.hash as string);
 		case "get_file_diff":
 			return DIFF;
+		case "get_merged_branches":
+			return ["feat/x"];
 		case "resolve_commit":
 			return null;
 		case "add_tag":

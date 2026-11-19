@@ -87,7 +87,7 @@ const fr: typeof en = {
 			commit: "Commit",
 		},
 		uncommitted: "Modifications non validées ({{count}})",
-		loadMore: "Charger plus de commits",
+		loadingMore: "Chargement des commits suivants…",
 		commitNotInView: "Commit absent de la vue actuelle",
 		resizeColumn: "Redimensionner la colonne {{column}}",
 	},

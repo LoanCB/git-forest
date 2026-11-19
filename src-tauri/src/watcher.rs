@@ -303,6 +303,15 @@ mod tests {
         rx.recv_timeout(d).is_err()
     }
 
+    /// Drains events until none arrives for a second. FSEvents (macOS) can
+    /// deliver changes made just before the watch started, after it started.
+    fn settle(rx: &Receiver<()>) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while !quiet(rx, Duration::from_secs(1)) {
+            assert!(std::time::Instant::now() < deadline, "events never settled");
+        }
+    }
+
     #[test]
     fn emits_once_for_a_burst_of_ref_changes() {
         let repo = TestRepo::new();
@@ -484,6 +493,7 @@ mod tests {
             let _ = tx.send(());
         })
         .expect("start");
+        settle(&rx);
         fs::write(repo.path().join("node_modules/p/i.js"), "x").unwrap();
         fs::write(repo.path().join(".git/objects/zz-ignored"), "x").unwrap();
         assert!(quiet(&rx, Duration::from_secs(1)), "ignored change emitted");

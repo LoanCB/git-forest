@@ -129,3 +129,13 @@ export const watchRepo = (repo: string) =>
 	call<void>("watch_repo", { repo, generation: ++watchGeneration });
 export const unwatchRepo = () =>
 	call<void>("unwatch_repo", { generation: ++watchGeneration });
+
+/** Answers a prompt from the askpass helper; `null` cancels it. */
+export const answerAskpass = (id: number, answer: string | null) =>
+	call<void>("answer_askpass", { id, answer });
+/** Whether an ssh agent is reachable to load a key into. */
+export const sshAgentAvailable = () => call<boolean>("ssh_agent_available");
+/** Private key paths in `~/.ssh`. */
+export const listSshKeys = () => call<string[]>("list_ssh_keys");
+/** `ssh-add`s `key`; its passphrase is asked through the askpass dialog. */
+export const loadSshKey = (key: string) => call<void>("load_ssh_key", { key });

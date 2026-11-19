@@ -34,6 +34,14 @@
 					{
 						"en": "Smoother graph: a branch changing lane curves over a whole row.",
 						"fr": "Graphe plus doux : une branche qui change de colonne s'incurve sur toute une ligne."
+					},
+					{
+						"en": "When a fetch or push needs a key passphrase, a password or a host key confirmation, Git Forest asks for it in a dialog. Nothing is stored.",
+						"fr": "Quand un fetch ou un push a besoin de la passphrase d'une clé, d'un mot de passe ou de la confirmation d'un hôte, Git Forest le demande dans une fenêtre. Rien n'est enregistré."
+					},
+					{
+						"en": "When the remote refuses your ssh keys, the error explains what to do and, if an ssh agent is running, offers to load one of your keys into it.",
+						"fr": "Quand le remote refuse vos clés ssh, l'erreur explique quoi faire et, si un agent ssh tourne, propose d'y charger une de vos clés."
 					}
 				],
 				"fixes": [

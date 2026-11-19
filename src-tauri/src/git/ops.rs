@@ -126,7 +126,9 @@ pub async fn run_cancellable(
     let guard = registry.register(op_id)?;
     // git_command starts git in its own session, hence its own group, so that
     // killing the group reaches every descendant.
-    let std_cmd = git_command(repo, args);
+    let mut std_cmd = git_command(repo, args);
+    // Network commands may need a passphrase or password: ask in the app.
+    crate::askpass::configure(&mut std_cmd);
     let mut cmd = tokio::process::Command::from(std_cmd);
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = cmd.spawn().map_err(spawn_error)?;

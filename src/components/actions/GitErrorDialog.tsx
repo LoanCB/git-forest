@@ -8,6 +8,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { useOperations } from "@/store/operations";
+import { isSshAuthFailure, SshKeyHelp } from "./SshKeyHelp";
 
 const repoName = (path: string | null) =>
 	path?.split(/[\\/]/).filter(Boolean).pop() ?? "";
@@ -32,6 +33,7 @@ export function GitErrorDialog() {
 						{t("actions.errorTitle", { label, repo: repoName(repo) })}
 					</DialogTitle>
 				</DialogHeader>
+				{error && isSshAuthFailure(error.message) && <SshKeyHelp />}
 				<pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 font-mono text-xs">
 					{error?.message}
 				</pre>

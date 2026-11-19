@@ -1,3 +1,4 @@
+pub mod askpass;
 pub mod git;
 pub mod repos;
 #[cfg(test)]
@@ -21,6 +22,10 @@ pub fn run() {
         .manage(repos::RepoListLock::default())
         .manage(git::ops::OpRegistry::default())
         .manage(watcher::WatcherState::default())
+        .setup(|app| {
+            askpass::install(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             repos::list_repos,
             repos::add_repo,
@@ -47,6 +52,10 @@ pub fn run() {
             git::network::delete_remote_branch,
             git::network::delete_remote_tag,
             git::ops::cancel_operation,
+            askpass::answer_askpass,
+            askpass::ssh_agent_available,
+            askpass::list_ssh_keys,
+            askpass::load_ssh_key,
             watcher::watch_repo,
             watcher::unwatch_repo,
             #[cfg(desktop)]

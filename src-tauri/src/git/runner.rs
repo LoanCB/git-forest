@@ -19,23 +19,11 @@ pub fn git_command(repo: &Path, args: &[&str]) -> Command {
         .env("GIT_OPTIONAL_LOCKS", "0")
         .env("LC_ALL", "C")
         .stdin(Stdio::null());
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        // A new session has no controlling terminal: ssh cannot sit on a
-        // password or passphrase prompt in the terminal the app was started
-        // from, where nobody sees it. It fails, or uses SSH_ASKPASS, instead.
-        // Also makes git a group leader, so killpg(pid) reaches its children.
-        // SAFETY: setsid is async-signal-safe and touches no parent state.
-        unsafe {
-            cmd.pre_exec(|| {
-                if libc::setsid() == -1 {
-                    return Err(io::Error::last_os_error());
-                }
-                Ok(())
-            });
-        }
-    }
+    // A new session has no controlling terminal: ssh cannot sit on a
+    // password or passphrase prompt in the terminal the app was started
+    // from, where nobody sees it. It asks through the askpass helper instead.
+    // Also makes git a group leader, so killpg(pid) reaches its children.
+    crate::askpass::detach_from_terminal(&mut cmd);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;

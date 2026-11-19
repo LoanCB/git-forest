@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActionDialogs } from "@/components/actions/ActionDialogs";
+import { AskpassDialog } from "@/components/actions/AskpassDialog";
 import { GitErrorDialog } from "@/components/actions/GitErrorDialog";
 import { OperationBar } from "@/components/actions/OperationBar";
 import { CommitTable } from "@/components/graph/CommitTable";
@@ -8,6 +9,7 @@ import { RepoMissing } from "@/components/layout/RepoMissing";
 import { Toolbar } from "@/components/layout/Toolbar";
 import { UpdateBanner } from "@/components/layout/UpdateBanner";
 import { WatchNotice } from "@/components/layout/WatchNotice";
+import { useAskpassPrompts } from "@/hooks/useAskpassPrompts";
 import { useRepoWatcher } from "@/hooks/useRepoWatcher";
 import { UpdaterContext, useUpdater } from "@/hooks/useUpdater";
 import { useReposStore } from "@/store/repos";
@@ -64,6 +66,7 @@ function Content() {
 
 export default function App() {
 	useRepoWatcher();
+	useAskpassPrompts();
 	const updater = useUpdater();
 	const { checkForUpdate } = updater;
 
@@ -88,6 +91,7 @@ export default function App() {
 					<Content />
 					<OperationBar />
 					<GitErrorDialog />
+					<AskpassDialog />
 				</main>
 			</UpdaterContext.Provider>
 		</ThemeProvider>

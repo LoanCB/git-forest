@@ -44,12 +44,10 @@ export function CommitDetailsPanel({
 	const [selected, setSelected] = useState<FileChange | null>(null);
 	const [diff, setDiff] = useState<Loaded<string> | null>(null);
 
+	// The parent keys this panel by repo and id, so state starts fresh for each.
 	// `live` drops the result of a request once another row or repo took over.
 	useEffect(() => {
 		let live = true;
-		setData({ status: "loading" });
-		setSelected(null);
-		setDiff(null);
 		const load =
 			id === UNCOMMITTED_ID
 				? getUncommitted(repo).then((files) => ({ details: null, files }))

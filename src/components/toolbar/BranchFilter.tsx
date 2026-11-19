@@ -22,6 +22,7 @@ export function BranchFilter() {
 			: []),
 	];
 	const selected = prefs.branches;
+	const selectedSet = new Set(selected);
 
 	const toggle = (name: string, on: boolean) => {
 		const current = selected ?? [];
@@ -61,7 +62,7 @@ export function BranchFilter() {
 						className="flex items-center gap-2 px-1 text-[13px]"
 					>
 						<Checkbox
-							checked={selected?.includes(name) ?? false}
+							checked={selectedSet.has(name)}
 							onCheckedChange={(on) => toggle(name, on)}
 						/>
 						<span className="truncate">{name}</span>

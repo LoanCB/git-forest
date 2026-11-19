@@ -47,7 +47,7 @@ export function computeLayout(commits: GraphInput[]): GraphLayout {
 
 		const merges: Segment[] = [];
 		// Lanes opened by this commit start at its centre, so they have no straight line.
-		const opened: number[] = [];
+		const opened = new Set<number>();
 		if (parents.length > 0) {
 			lanes[lane] = parents[0];
 			for (let k = 1; k < parents.length; k++) {
@@ -57,7 +57,7 @@ export function computeLayout(commits: GraphInput[]): GraphLayout {
 				} else {
 					const created = allocate();
 					lanes[created] = parents[k];
-					opened.push(created);
+					opened.add(created);
 					merges.push({ from: lane, to: created, color: laneColor[created] });
 				}
 			}
@@ -65,7 +65,7 @@ export function computeLayout(commits: GraphInput[]): GraphLayout {
 
 		const down: Segment[] = [];
 		for (let i = 0; i < lanes.length; i++) {
-			if (lanes[i] !== null && !opened.includes(i))
+			if (lanes[i] !== null && !opened.has(i))
 				down.push({ from: i, to: i, color: laneColor[i] });
 		}
 		down.push(...merges);

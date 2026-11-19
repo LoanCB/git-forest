@@ -44,14 +44,22 @@ export const useReposStore = create<ReposState>((set, get) => ({
 	async addMany(paths) {
 		const added: RepoEntry[] = [];
 		const failed: AddManyResult["failed"] = [];
-		// One at a time, in order; one failing path must not abort the rest.
-		for (const path of paths) {
-			try {
-				added.push(await addRepo(path));
-			} catch (e) {
-				failed.push({ path, error: toGitError(e) });
-			}
-		}
+		// One at a time, in order (the backend serialises list writes anyway);
+		// one failing path must not abort the rest.
+		await paths.reduce(
+			(previous, path) =>
+				previous.then(() =>
+					addRepo(path).then(
+						(entry) => {
+							added.push(entry);
+						},
+						(e) => {
+							failed.push({ path, error: toGitError(e) });
+						},
+					),
+				),
+			Promise.resolve(),
+		);
 		set((s) => ({
 			repos: [
 				...s.repos,

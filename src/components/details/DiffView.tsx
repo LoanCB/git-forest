@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { parseUnifiedDiff } from "@/lib/diff";
+import { diffLineKeys, parseUnifiedDiff } from "@/lib/diff";
 import type { DiffLineKind } from "@/lib/diff.types";
 import { cn } from "@/lib/utils";
 
@@ -23,10 +23,13 @@ const MARKER: Record<DiffLineKind, string> = {
 
 export function DiffView({ text }: { text: string }) {
 	const { t } = useTranslation();
-	const { lines, truncated } = useMemo(() => {
+	const { lines, keys, truncated } = useMemo(() => {
 		const all = parseUnifiedDiff(text);
+		const lines =
+			all.length > MAX_DIFF_LINES ? all.slice(0, MAX_DIFF_LINES) : all;
 		return {
-			lines: all.length > MAX_DIFF_LINES ? all.slice(0, MAX_DIFF_LINES) : all,
+			lines,
+			keys: diffLineKeys(lines),
 			truncated: all.length > MAX_DIFF_LINES,
 		};
 	}, [text]);
@@ -41,8 +44,7 @@ export function DiffView({ text }: { text: string }) {
 				<div className="w-max min-w-full">
 					{lines.map((l, i) => (
 						<div
-							// biome-ignore lint/suspicious/noArrayIndexKey: static list of lines
-							key={i}
+							key={keys[i]}
 							className={cn("flex whitespace-pre", KIND_CLASS[l.kind])}
 						>
 							<span className="w-10 shrink-0 select-none pr-1 text-right text-muted-foreground">

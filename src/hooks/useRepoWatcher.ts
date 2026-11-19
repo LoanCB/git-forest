@@ -15,9 +15,9 @@ export function useRepoWatcher() {
 	const busy = useOperations(selectLocalBusy);
 	const busyRef = useRef(busy);
 	const pending = useRef(false);
-	busyRef.current = busy;
 
 	useEffect(() => {
+		busyRef.current = busy;
 		if (!busy && pending.current) {
 			pending.current = false;
 			void useRepoView.getState().refresh();

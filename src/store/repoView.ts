@@ -245,13 +245,16 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 
 		async loadUntil(hash) {
 			const startToken = token;
-			for (;;) {
+			// Each page starts where the previous one ended, so pages load one by one.
+			const step = async (): Promise<boolean> => {
 				const s = get();
 				if (s.commits.some((c) => c.hash === hash)) return true;
 				if (!s.hasMore || s.error || s.loading || token !== startToken)
 					return false;
 				await get().loadMore();
-			}
+				return step();
+			};
+			return step();
 		},
 
 		async requestScrollTo(hash, beforeScroll) {

@@ -1,6 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
 	CommitDetailsPanel,
@@ -125,6 +124,8 @@ export function CommitTable() {
 		(id: string) => setExpanded((cur) => (cur === id ? null : id)),
 		[setExpanded],
 	);
+	// Set when a scroll must wait for this row's details panel to render.
+	const awaitedPanel = useRef<string | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
 	useEffect(() => {
 		if (notice === null) return;
@@ -134,11 +135,12 @@ export function CommitTable() {
 	const goToParent = useCallback(
 		async (hash: string) => {
 			const opened = useRepoView.getState().repo;
-			// The panel opens only once the commit is found, and before the scroll
-			// runs, so the scroll sees the final layout.
-			const found = await useRepoView
-				.getState()
-				.requestScrollTo(hash, () => flushSync(() => setExpanded(hash)));
+			// The panel opens only once the commit is found; the scroll then waits
+			// for it to render so it sees the final layout.
+			const found = await useRepoView.getState().requestScrollTo(hash, () => {
+				awaitedPanel.current = hash;
+				setExpanded(hash);
+			});
 			if (!found && useRepoView.getState().repo === opened)
 				setNotice(t("graph.commitNotInView"));
 		},
@@ -149,15 +151,19 @@ export function CommitTable() {
 	const clearScrollTarget = useRepoView((s) => s.clearScrollTarget);
 	useEffect(() => {
 		if (scrollTarget === null) return;
+		if (awaitedPanel.current !== null && awaitedPanel.current !== expanded)
+			return;
 		const i = commits.findIndex((c) => c.hash === scrollTarget);
 		if (i < 0) return;
 		const row = i + offset;
 		// The panel sits below its row, so only a panel above the target shifts it.
 		const index = expandedRow >= 0 && expandedRow < row ? row + 1 : row;
 		virtualizer.scrollToIndex(index, { align: "start" });
+		awaitedPanel.current = null;
 		clearScrollTarget();
 	}, [
 		scrollTarget,
+		expanded,
 		commits,
 		offset,
 		expandedRow,

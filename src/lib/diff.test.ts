@@ -1,5 +1,5 @@
-import { expect, it } from "vitest";
-import { parseUnifiedDiff } from "./diff";
+import { describe, expect, it } from "vitest";
+import { diffLineKeys, parseUnifiedDiff } from "./diff";
 
 it("parses hunks with line numbers for added, removed and context lines", () => {
 	const text = [
@@ -45,4 +45,21 @@ it("marks a binary file diff as meta", () => {
 	);
 	expect(lines).toHaveLength(3);
 	expect(lines.every((l) => l.kind === "meta")).toBe(true);
+});
+
+describe("diffLineKeys", () => {
+	it("gives every line a distinct key, suffixing repeated lines", () => {
+		const lines = parseUnifiedDiff(
+			[
+				"@@ -1 +1 @@",
+				"-a",
+				"\\ No newline at end of file",
+				"+b",
+				"\\ No newline at end of file",
+			].join("\n"),
+		);
+		const keys = diffLineKeys(lines);
+		expect(new Set(keys).size).toBe(lines.length);
+		expect(keys[4]).toBe(`${keys[2]}#1`);
+	});
 });

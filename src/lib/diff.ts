@@ -49,3 +49,17 @@ export function parseUnifiedDiff(text: string): DiffLine[] {
 	}
 	return out;
 }
+
+/**
+ * A stable React key per line, built from its content and line numbers; a
+ * repeated line (e.g. two "No newline" markers) gets a numbered suffix.
+ */
+export function diffLineKeys(lines: DiffLine[]): string[] {
+	const seen = new Map<string, number>();
+	return lines.map((l) => {
+		const base = `${l.kind}:${l.oldNo ?? ""}:${l.newNo ?? ""}:${l.text}`;
+		const n = seen.get(base) ?? 0;
+		seen.set(base, n + 1);
+		return n === 0 ? base : `${base}#${n}`;
+	});
+}

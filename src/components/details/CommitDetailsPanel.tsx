@@ -42,7 +42,17 @@ export function CommitDetailsPanel({
 	const { t, i18n } = useTranslation();
 	const [data, setData] = useState<Loaded<PanelData>>({ status: "loading" });
 	const [selected, setSelected] = useState<FileChange | null>(null);
-	const [diff, setDiff] = useState<Loaded<string> | null>(null);
+	// Tagged with its file, so a diff still loading for a new selection is
+	// derived instead of reset in the effect.
+	const [loadedDiff, setLoadedDiff] = useState<{
+		file: FileChange;
+		result: Loaded<string>;
+	} | null>(null);
+	const diff: Loaded<string> | null = !selected
+		? null
+		: loadedDiff?.file === selected
+			? loadedDiff.result
+			: { status: "loading" };
 
 	// The parent keys this panel by repo and id, so state starts fresh for each.
 	// `live` drops the result of a request once another row or repo took over.
@@ -67,7 +77,6 @@ export function CommitDetailsPanel({
 	useEffect(() => {
 		if (!selected) return;
 		let live = true;
-		setDiff({ status: "loading" });
 		getFileDiff(
 			repo,
 			id === UNCOMMITTED_ID
@@ -76,8 +85,15 @@ export function CommitDetailsPanel({
 			selected.path,
 			selected.oldPath,
 		).then(
-			(value) => live && setDiff({ status: "ready", value }),
-			(e) => live && setDiff({ status: "error", message: errorMessage(e) }),
+			(value) =>
+				live &&
+				setLoadedDiff({ file: selected, result: { status: "ready", value } }),
+			(e) =>
+				live &&
+				setLoadedDiff({
+					file: selected,
+					result: { status: "error", message: errorMessage(e) },
+				}),
 		);
 		return () => {
 			live = false;

@@ -124,14 +124,11 @@ pub async fn run_cancellable(
         ));
     }
     let guard = registry.register(op_id)?;
-    #[allow(unused_mut)]
+    // git_command starts git in its own session, hence its own group, so that
+    // killing the group reaches every descendant.
     let mut std_cmd = git_command(repo, args);
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        // Its own group, so that killing the group reaches every descendant.
-        std_cmd.process_group(0);
-    }
+    // Network commands may need a passphrase or password: ask in the app.
+    crate::askpass::configure(&mut std_cmd);
     let mut cmd = tokio::process::Command::from(std_cmd);
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = cmd.spawn().map_err(spawn_error)?;
@@ -182,7 +179,7 @@ async fn terminate(child: &mut Child, stdout: &mut Drain, stderr: &mut Drain) {
 async fn kill_tree(pid: u32, force: bool) {
     let signal = if force { libc::SIGKILL } else { libc::SIGTERM };
     // SAFETY: killpg only sends a signal. git leads its own group (see
-    // `process_group(0)`), so the group id is git's pid.
+    // `setsid` in git_command), so the group id is git's pid.
     unsafe {
         libc::killpg(pid as libc::pid_t, signal);
     }

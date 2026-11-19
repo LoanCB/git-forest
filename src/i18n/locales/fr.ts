@@ -113,6 +113,18 @@ const fr: typeof en = {
 			"Le rafraîchissement automatique est désactivé pour ce dépôt : {{message}} Utilisez Actualiser (F5).",
 		dismiss: "Fermer",
 	},
+	sshHelp: {
+		explain:
+			"Le remote a refusé vos clés ssh. Chargez votre clé dans l'agent ssh, puis relancez l'action ; la passphrase est demandée ici.",
+		key: "Clé SSH",
+		load: "Charger la clé",
+		loaded: "Clé chargée. Relancez l'action.",
+	},
+	askpass: {
+		title: "Git demande une information",
+		submit: "Envoyer",
+		allow: "Autoriser",
+	},
 	actions: {
 		cancel: "Annuler",
 		close: "Fermer",

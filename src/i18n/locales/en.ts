@@ -111,6 +111,18 @@ const en = {
 			"Automatic refresh is off for this repository: {{message}} Use Refresh (F5).",
 		dismiss: "Dismiss",
 	},
+	sshHelp: {
+		explain:
+			"The remote refused your ssh keys. Load your key into the ssh agent, then run the action again; the passphrase is asked here.",
+		key: "SSH key",
+		load: "Load key",
+		loaded: "Key loaded. Run the action again.",
+	},
+	askpass: {
+		title: "Git is asking",
+		submit: "Send",
+		allow: "Allow",
+	},
 	actions: {
 		cancel: "Cancel",
 		close: "Close",

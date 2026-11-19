@@ -19,6 +19,11 @@ pub fn git_command(repo: &Path, args: &[&str]) -> Command {
         .env("GIT_OPTIONAL_LOCKS", "0")
         .env("LC_ALL", "C")
         .stdin(Stdio::null());
+    // A new session has no controlling terminal: ssh cannot sit on a
+    // password or passphrase prompt in the terminal the app was started
+    // from, where nobody sees it. It asks through the askpass helper instead.
+    // Also makes git a group leader, so killpg(pid) reaches its children.
+    crate::askpass::detach_from_terminal(&mut cmd);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -94,6 +99,30 @@ mod tests {
     use super::*;
     use crate::test_support::TestRepo;
     use std::fs;
+
+    /// ssh must not find a terminal to prompt on: git leads a session (and so
+    /// a process group) of its own. `ps` reports the group everywhere, the
+    /// session only on Linux.
+    #[cfg(unix)]
+    #[test]
+    fn git_runs_in_its_own_session() {
+        let repo = TestRepo::new();
+        let ids = |field: &str| -> i32 {
+            let alias = format!("alias.ids=!ps -o {field}= -p $$");
+            let out = git_command(repo.path(), &["-c", &alias, "ids"])
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            String::from_utf8_lossy(&out.stdout).trim().parse().unwrap()
+        };
+        assert_ne!(ids("pgid"), unsafe { libc::getpgrp() });
+        #[cfg(target_os = "linux")]
+        assert_ne!(ids("sid"), unsafe { libc::getsid(0) });
+    }
 
     #[test]
     fn run_git_returns_stdout() {

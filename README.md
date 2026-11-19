@@ -1,3 +1,5 @@
+<p align="center"><img src="src-tauri/icons/logo.svg" alt="" width="128" height="128"></p>
+
 # Git Forest
 
 Desktop app (Linux, macOS, Windows) built with Tauri 2 that shows git graphs, like the VS Code "Git Graph" extension.

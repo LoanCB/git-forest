@@ -12,22 +12,13 @@ import { HEADER_HEIGHT, ROW_HEIGHT } from "@/graph/constants";
 import { computeLayout } from "@/graph/layout";
 import { groupRefs } from "@/graph/refs";
 import { withUncommitted } from "@/graph/uncommitted";
+import { COLUMNS, useColumnWidths } from "@/hooks/useColumnWidths";
 import { formatDate } from "@/lib/format";
-import { setRepoPrefs } from "@/store/prefs";
-import type { ColumnId } from "@/store/prefs.types";
 import { useRepoView } from "@/store/repoView";
 import { useSearch } from "@/store/search";
 
 /** Initial guess for a details panel's height, until it is measured. */
 const PANEL_ESTIMATE = 240;
-
-const COLUMNS: ColumnId[] = [
-	"graph",
-	"description",
-	"date",
-	"author",
-	"commit",
-];
 
 export function CommitTable() {
 	const { t, i18n } = useTranslation();
@@ -40,12 +31,10 @@ export function CommitTable() {
 	const prefs = useRepoView((s) => s.prefs);
 	const loadMore = useRepoView((s) => s.loadMore);
 
-	const [dragWidths, setDragWidths] = useState<
-		Partial<Record<ColumnId, number>>
-	>({});
-	const widths = { ...prefs.columnWidths, ...dragWidths };
-	const columns = `${widths.graph}px minmax(${widths.description}px, 1fr) ${widths.date}px ${widths.author}px ${widths.commit}px`;
-	const minWidth = COLUMNS.reduce((sum, c) => sum + widths[c], 0);
+	const { widths, columns, minWidth, resize, save } = useColumnWidths(
+		repo,
+		prefs,
+	);
 
 	const head = refs?.head.commit ?? null;
 	const dirty = uncommitted.length > 0;
@@ -171,24 +160,6 @@ export function CommitTable() {
 		clearScrollTarget,
 	]);
 
-	const saveWidth = async (column: ColumnId, width: number) => {
-		if (!repo) return;
-		const columnWidths = { ...prefs.columnWidths, [column]: width };
-		try {
-			const saved = await setRepoPrefs(repo, { columnWidths });
-			if (useRepoView.getState().repo === repo)
-				useRepoView.setState((s) => ({
-					prefs: { ...s.prefs, columnWidths: saved.columnWidths },
-				}));
-			setDragWidths((d) => {
-				const { [column]: _, ...rest } = d;
-				return rest;
-			});
-		} catch (e) {
-			console.error("Could not save the column widths", e);
-		}
-	};
-
 	const locale = i18n.language;
 	const renderRow = (virtualIndex: number, top: number) => {
 		if (virtualIndex === panelIndex && expanded !== null && repo)
@@ -303,8 +274,8 @@ export function CommitTable() {
 									label={t("graph.resizeColumn", {
 										column: t(`graph.columns.${c}`),
 									})}
-									onResize={(w) => setDragWidths((d) => ({ ...d, [c]: w }))}
-									onResizeEnd={(w) => void saveWidth(c, w)}
+									onResize={(w) => resize(c, w)}
+									onResizeEnd={(w) => void save(c, w)}
 								/>
 							</div>
 						))}

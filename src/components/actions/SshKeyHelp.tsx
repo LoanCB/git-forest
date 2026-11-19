@@ -15,10 +15,6 @@ import {
 	toGitError,
 } from "@/git/api";
 
-/** The remote refused every ssh key on offer. */
-export const isSshAuthFailure = (message: string) =>
-	/Permission denied \([^)]*publickey/.test(message);
-
 type Load =
 	| { status: "idle" }
 	| { status: "loading" }

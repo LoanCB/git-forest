@@ -100,23 +100,28 @@ mod tests {
     use crate::test_support::TestRepo;
     use std::fs;
 
-    /// ssh must not find a terminal to prompt on: git runs as the leader of a
-    /// session of its own, not in the caller's.
+    /// ssh must not find a terminal to prompt on: git leads a session (and so
+    /// a process group) of its own. `ps` reports the group everywhere, the
+    /// session only on Linux.
     #[cfg(unix)]
     #[test]
     fn git_runs_in_its_own_session() {
         let repo = TestRepo::new();
-        let out = git_command(repo.path(), &["-c", "alias.sid=!ps -o sid= -p $$", "sid"])
-            .output()
-            .unwrap();
-        assert!(
-            out.status.success(),
-            "{}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-        let child_sid: i32 = String::from_utf8_lossy(&out.stdout).trim().parse().unwrap();
-        let own_sid = unsafe { libc::getsid(0) };
-        assert_ne!(child_sid, own_sid);
+        let ids = |field: &str| -> i32 {
+            let alias = format!("alias.ids=!ps -o {field}= -p $$");
+            let out = git_command(repo.path(), &["-c", &alias, "ids"])
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            String::from_utf8_lossy(&out.stdout).trim().parse().unwrap()
+        };
+        assert_ne!(ids("pgid"), unsafe { libc::getpgrp() });
+        #[cfg(target_os = "linux")]
+        assert_ne!(ids("sid"), unsafe { libc::getsid(0) });
     }
 
     #[test]

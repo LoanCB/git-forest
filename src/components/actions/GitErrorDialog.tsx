@@ -7,8 +7,9 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { isSshAuthFailure } from "@/lib/sshAuth";
 import { useOperations } from "@/store/operations";
-import { isSshAuthFailure, SshKeyHelp } from "./SshKeyHelp";
+import { SshKeyHelp } from "./SshKeyHelp";
 
 const repoName = (path: string | null) =>
 	path?.split(/[\\/]/).filter(Boolean).pop() ?? "";

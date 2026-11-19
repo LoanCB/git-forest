@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
-import { isSshAuthFailure, SshKeyHelp } from "./SshKeyHelp";
+import { SshKeyHelp } from "./SshKeyHelp";
 import { callsTo } from "./testUtils";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -18,13 +18,6 @@ const backend = (agent: boolean, load?: () => Promise<void>) =>
 		if (cmd === "load_ssh_key") return load?.();
 		return undefined;
 	});
-
-it("recognises an ssh key refusal", () => {
-	expect(
-		isSshAuthFailure("git@host: Permission denied (publickey,password)."),
-	).toBe(true);
-	expect(isSshAuthFailure("fatal: repository not found")).toBe(false);
-});
 
 it("loads the chosen key when an agent is reachable", async () => {
 	backend(true);

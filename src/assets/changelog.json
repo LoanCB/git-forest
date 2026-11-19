@@ -52,6 +52,10 @@
 					{
 						"en": "Copy hash works in the Linux app.",
 						"fr": "« Copier le hash » fonctionne dans l'application Linux."
+					},
+					{
+						"en": "A fetch or push that needs a password or key passphrase no longer spins forever when the app was started from a terminal: it fails with git's message instead.",
+						"fr": "Un fetch ou un push qui demande un mot de passe ou la passphrase d'une clé ne tourne plus indéfiniment quand l'app a été lancée depuis un terminal : il échoue avec le message de git."
 					}
 				]
 			}

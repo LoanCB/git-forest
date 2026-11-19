@@ -19,6 +19,23 @@ pub fn git_command(repo: &Path, args: &[&str]) -> Command {
         .env("GIT_OPTIONAL_LOCKS", "0")
         .env("LC_ALL", "C")
         .stdin(Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        // A new session has no controlling terminal: ssh cannot sit on a
+        // password or passphrase prompt in the terminal the app was started
+        // from, where nobody sees it. It fails, or uses SSH_ASKPASS, instead.
+        // Also makes git a group leader, so killpg(pid) reaches its children.
+        // SAFETY: setsid is async-signal-safe and touches no parent state.
+        unsafe {
+            cmd.pre_exec(|| {
+                if libc::setsid() == -1 {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -94,6 +111,25 @@ mod tests {
     use super::*;
     use crate::test_support::TestRepo;
     use std::fs;
+
+    /// ssh must not find a terminal to prompt on: git runs as the leader of a
+    /// session of its own, not in the caller's.
+    #[cfg(unix)]
+    #[test]
+    fn git_runs_in_its_own_session() {
+        let repo = TestRepo::new();
+        let out = git_command(repo.path(), &["-c", "alias.sid=!ps -o sid= -p $$", "sid"])
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let child_sid: i32 = String::from_utf8_lossy(&out.stdout).trim().parse().unwrap();
+        let own_sid = unsafe { libc::getsid(0) };
+        assert_ne!(child_sid, own_sid);
+    }
 
     #[test]
     fn run_git_returns_stdout() {

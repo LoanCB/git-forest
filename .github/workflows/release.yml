@@ -245,6 +245,13 @@ jobs:
           const repo = process.env.GITHUB_REPO;
           const baseUrl = `https://github.com/${repo}/releases/download/${tag}`;
 
+          // GitHub renames uploaded assets: "Git Forest_0.2.0_amd64.deb" is served
+          // as "Git.Forest_0.2.0_amd64.deb". The URL must use the served name.
+          function assetUrl(file) {
+            const name = path.basename(file).replace(/ /g, '.');
+            return `${baseUrl}/${encodeURIComponent(name)}`;
+          }
+
           function walkDir(dir) {
             const results = [];
             for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -278,7 +285,7 @@ jobs:
           const macTar = find('.app.tar.gz');
           if (macTar) {
             manifest.platforms['darwin-aarch64'] = {
-              url: `${baseUrl}/${path.basename(macTar)}`,
+              url: assetUrl(macTar),
               signature: readSig('.app.tar.gz.sig'),
             };
           }
@@ -286,7 +293,7 @@ jobs:
           const linuxTar = find('.AppImage.tar.gz');
           if (linuxTar) {
             manifest.platforms['linux-x86_64'] = {
-              url: `${baseUrl}/${path.basename(linuxTar)}`,
+              url: assetUrl(linuxTar),
               signature: readSig('.AppImage.tar.gz.sig'),
             };
           }
@@ -295,7 +302,7 @@ jobs:
           if (winZip) {
             const sigSuffix = winZip.endsWith('.nsis.zip') ? '.nsis.zip.sig' : '.msi.zip.sig';
             manifest.platforms['windows-x86_64'] = {
-              url: `${baseUrl}/${path.basename(winZip)}`,
+              url: assetUrl(winZip),
               signature: readSig(sigSuffix),
             };
           }
@@ -321,7 +328,7 @@ jobs:
               platforms: {
                 ...manifest.platforms,
                 'linux-x86_64': {
-                  url: `${baseUrl}/${path.basename(deb)}`,
+                  url: assetUrl(deb),
                   signature: readSig('.deb.sig'),
                 },
               },

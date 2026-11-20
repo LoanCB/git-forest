@@ -1,6 +1,19 @@
 {
-	"generatedAt": "2026-11-19",
+	"generatedAt": "2026-11-20",
 	"versions": [
+		{
+			"version": "0.2.0",
+			"tag": "v0.2.0",
+			"date": "2026-11-20",
+			"changes": {
+				"performance": [
+					{
+						"en": "Lighter while open: editing files in the repository now only re-reads their status instead of the whole history, a refresh that finds nothing new no longer redraws the graph, and changes made while the window is minimised are picked up once, when it is shown again.",
+						"fr": "Plus léger quand l'application reste ouverte : modifier des fichiers du dépôt ne relit plus que leur statut au lieu de tout l'historique, un rafraîchissement qui ne trouve rien de nouveau ne redessine plus le graphe, et les changements faits pendant que la fenêtre est réduite sont pris en compte une seule fois, à son retour."
+					}
+				]
+			}
+		},
 		{
 			"version": "0.1.0",
 			"tag": "v0.1.0",

@@ -50,7 +50,7 @@ export function CommitTable() {
 		() => (refs ? groupRefs(refs, prefs.showRemotes) : new Map()),
 		[refs, prefs.showRemotes],
 	);
-	// A fresh list on every refresh, so this is the time of the last status read.
+	// A refresh keeps an unchanged list, so this is when the status last changed.
 	const uncommittedAt = useMemo(
 		() => (uncommitted.length > 0 ? Date.now() / 1000 : 0),
 		[uncommitted],

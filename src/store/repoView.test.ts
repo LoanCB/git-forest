@@ -216,6 +216,46 @@ describe("useRepoView", () => {
 		);
 	});
 
+	it("refresh keeps the previous objects when nothing changed", async () => {
+		mockBackend({
+			get_commits: () => ({ commits: range(0, 2), hasMore: false }),
+			get_uncommitted: () => [{ path: "a", status: "M" }],
+		});
+		await useRepoView.getState().open("/r");
+		const before = useRepoView.getState();
+		await useRepoView.getState().refresh();
+		const after = useRepoView.getState();
+		expect(after.commits).toBe(before.commits);
+		expect(after.refs).toBe(before.refs);
+		expect(after.uncommitted).toBe(before.uncommitted);
+	});
+
+	it('refresh("status") only re-reads the uncommitted changes', async () => {
+		mockBackend({
+			get_commits: () => ({ commits: range(0, 2), hasMore: false }),
+		});
+		await useRepoView.getState().open("/r");
+		invoke.mockClear();
+		mockBackend({ get_uncommitted: () => [{ path: "a", status: "M" }] });
+		await useRepoView.getState().refresh("status");
+		expect(invoke.mock.calls.map((c) => c[0])).toEqual(["get_uncommitted"]);
+		expect(useRepoView.getState().uncommitted).toEqual([
+			{ path: "a", status: "M" },
+		]);
+	});
+
+	it("a full refresh queued behind a status one still runs", async () => {
+		mockBackend();
+		await useRepoView.getState().open("/r");
+		invoke.mockClear();
+		const first = useRepoView.getState().refresh("status");
+		const second = useRepoView.getState().refresh("all");
+		await Promise.all([first, second]);
+		expect(invoke.mock.calls.filter((c) => c[0] === "get_refs")).toHaveLength(
+			1,
+		);
+	});
+
 	it("refresh reloads at least as many commits as are already loaded", async () => {
 		mockBackend({
 			get_commits: ({ query }) => ({

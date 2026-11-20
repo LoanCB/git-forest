@@ -2,6 +2,19 @@
 	"generatedAt": "2026-11-20",
 	"versions": [
 		{
+			"version": "0.2.1",
+			"tag": "v0.2.1",
+			"date": "2026-11-20",
+			"changes": {
+				"fixes": [
+					{
+						"en": "Installing an update no longer fails with “404 Not Found”: the update now points to the file GitHub actually serves.",
+						"fr": "L'installation d'une mise à jour n'échoue plus avec « 404 Not Found » : la mise à jour pointe désormais vers le fichier réellement servi par GitHub."
+					}
+				]
+			}
+		},
+		{
 			"version": "0.2.0",
 			"tag": "v0.2.0",
 			"date": "2026-11-20",

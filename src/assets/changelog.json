@@ -2,9 +2,9 @@
 	"generatedAt": "2026-11-20",
 	"versions": [
 		{
-			"version": "Unreleased",
-			"tag": null,
-			"date": null,
+			"version": "0.2.1",
+			"tag": "v0.2.1",
+			"date": "2026-11-20",
 			"changes": {
 				"fixes": [
 					{

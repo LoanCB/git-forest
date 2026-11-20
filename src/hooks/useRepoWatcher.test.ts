@@ -11,7 +11,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
 const refresh = vi.fn();
-let emit: (repo: string) => void = () => {};
+let emit: (repo: string, history?: boolean) => void = () => {};
 
 const busy = (on: boolean) =>
 	act(() =>
@@ -27,9 +27,13 @@ beforeEach(() => {
 	vi.mocked(listen)
 		.mockReset()
 		.mockImplementation(async (_event, handler) => {
-			emit = (repo) =>
-				(handler as (e: { payload: { repo: string } }) => void)({
-					payload: { repo },
+			emit = (repo, history = true) =>
+				(
+					handler as (e: {
+						payload: { repo: string; history: boolean };
+					}) => void
+				)({
+					payload: { repo, history },
 				});
 			return () => {};
 		});
@@ -63,6 +67,32 @@ it("defers the refresh while a local action is running", async () => {
 	expect(refresh).not.toHaveBeenCalled();
 	busy(false);
 	expect(refresh).toHaveBeenCalledTimes(1);
+});
+
+it("only re-reads the status when the history did not change", async () => {
+	renderHook(() => useRepoWatcher());
+	await vi.waitFor(() => expect(listen).toHaveBeenCalled());
+	emit("/p/r", false);
+	expect(refresh).toHaveBeenLastCalledWith("status");
+	emit("/p/r", true);
+	expect(refresh).toHaveBeenLastCalledWith("all");
+});
+
+it("defers the refresh while the window is hidden", async () => {
+	const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+	renderHook(() => useRepoWatcher());
+	await vi.waitFor(() => expect(listen).toHaveBeenCalled());
+	emit("/p/r", false);
+	emit("/p/r", true);
+	emit("/p/r", false);
+	expect(refresh).not.toHaveBeenCalled();
+	hidden.mockReturnValue(false);
+	act(() => {
+		document.dispatchEvent(new Event("visibilitychange"));
+	});
+	expect(refresh).toHaveBeenCalledTimes(1);
+	expect(refresh).toHaveBeenCalledWith("all");
+	hidden.mockRestore();
 });
 
 it("unwatches when the repository closes", async () => {

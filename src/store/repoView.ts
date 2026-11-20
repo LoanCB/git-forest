@@ -9,6 +9,7 @@ import type {
 } from "../git/types";
 import { getRepoPrefs, setRepoPrefs } from "./prefs";
 import { DEFAULT_REPO_PREFS, type RepoPrefs } from "./prefs.types";
+import type { RefreshScope } from "./repoView.types";
 
 export const PAGE_SIZE = 300;
 
@@ -26,7 +27,8 @@ interface RepoViewState {
 	open(repo: string): Promise<void>;
 	/** Drops the open repository (e.g. it was removed from the list) and any load in flight. */
 	close(): void;
-	refresh(): Promise<void>;
+	/** Re-reads the repository; `"status"` only re-reads the uncommitted changes. */
+	refresh(scope?: RefreshScope): Promise<void>;
 	loadMore(): Promise<void>;
 	loadUntil(hash: string): Promise<boolean>;
 	/** Loads pages until `hash` is listed, runs `beforeScroll`, then sets `scrollTarget`. False if it is not in the view. */
@@ -43,8 +45,21 @@ let token = 0;
 // list must not append to the new one.
 let listVersion = 0;
 let refreshLoop: Promise<void> | null = null;
-let refreshQueued = false;
+let refreshQueued: RefreshScope | null = null;
 let pageLoad: Promise<void> | null = null;
+
+/** The scope covering both `a` and `b`. */
+export const mergeScopes = (
+	a: RefreshScope | null,
+	b: RefreshScope,
+): RefreshScope => (a === "all" || b === "all" ? "all" : "status");
+
+// Commits are identified by their hash, so equal hash lists hold equal commits.
+const sameCommits = (a: Commit[], b: Commit[]) =>
+	a.length === b.length && a.every((c, i) => c.hash === b[i].hash);
+
+const sameJson = (a: unknown, b: unknown) =>
+	JSON.stringify(a) === JSON.stringify(b);
 
 const query = (prefs: RepoPrefs, skip: number, limit: number): LogQuery => ({
 	refs: prefs.branches,
@@ -98,6 +113,23 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 		}
 	}
 
+	// Unchanged data keeps its previous object, so a refresh that finds nothing
+	// new neither re-lays out the graph nor re-renders the table.
+	async function refreshStatus() {
+		const { repo } = get();
+		if (!repo) return;
+		const mine = token;
+		try {
+			const uncommitted = await getUncommitted(repo);
+			if (mine !== token) return;
+			const s = get();
+			if (!sameJson(uncommitted, s.uncommitted)) set({ uncommitted });
+			if (s.error) set({ error: null });
+		} catch (e) {
+			if (mine === token) set({ error: toGitError(e) });
+		}
+	}
+
 	async function refreshOnce() {
 		const { repo, commits } = get();
 		if (!repo) return;
@@ -114,15 +146,19 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 			if (mine !== token) return;
 			const page = await getCommits(repo, query(prefs, 0, limit));
 			if (mine !== token) return;
+			// Even an unchanged list drops a loadMore in flight, which may append
+			// to a list that has grown meanwhile.
 			listVersion++;
-			set({
-				prefs,
-				refs,
-				commits: page.commits,
-				hasMore: page.hasMore,
-				uncommitted,
-				error: null,
-			});
+			const s = get();
+			const patch: Partial<RepoViewState> = {};
+			if (prefs !== s.prefs) patch.prefs = prefs;
+			if (!sameJson(refs, s.refs)) patch.refs = refs;
+			if (!sameCommits(page.commits, s.commits)) patch.commits = page.commits;
+			if (page.hasMore !== s.hasMore) patch.hasMore = page.hasMore;
+			if (!sameJson(uncommitted, s.uncommitted))
+				patch.uncommitted = uncommitted;
+			if (s.error) patch.error = null;
+			if (Object.keys(patch).length > 0) set(patch);
 		} catch (e) {
 			if (mine === token) set({ error: toGitError(e) });
 		}
@@ -194,19 +230,18 @@ export const useRepoView = create<RepoViewState>((set, get) => {
 			});
 		},
 
-		refresh() {
+		refresh(scope = "all") {
 			// A call during a refresh queues one more run and resolves with the loop,
 			// so its caller sees the data that follows its own change.
-			if (refreshLoop) {
-				refreshQueued = true;
-				return refreshLoop;
-			}
+			refreshQueued = mergeScopes(refreshQueued, scope);
+			if (refreshLoop) return refreshLoop;
 			const loop = (async () => {
 				try {
-					do {
-						refreshQueued = false;
-						await refreshOnce();
-					} while (refreshQueued);
+					while (refreshQueued) {
+						const next = refreshQueued;
+						refreshQueued = null;
+						await (next === "all" ? refreshOnce() : refreshStatus());
+					}
 				} finally {
 					refreshLoop = null;
 				}

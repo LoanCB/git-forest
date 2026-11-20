@@ -92,8 +92,18 @@ impl Slot {
 }
 
 #[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct RepoChanged {
     repo: String,
+    /// False when only the work tree or the index changed: the commit list and
+    /// refs are unchanged, so the front only needs to re-read the status.
+    history: bool,
+}
+
+/// One relevant event, as passed from the notify callback to the debounce thread.
+struct Change {
+    new_dirs: Vec<PathBuf>,
+    history: bool,
 }
 
 fn failed(msg: impl ToString) -> GitError {
@@ -133,6 +143,16 @@ fn is_relevant(path: &Path, workdir: &Path, git_dir: &Path) -> bool {
     !(in_skipped || is_skipped_itself)
 }
 
+/// Whether a change at `path` can alter the refs or the commit list.
+fn touches_history(path: &Path, git_dir: &Path) -> bool {
+    path.strip_prefix(git_dir).is_ok_and(|rel| {
+        matches!(
+            rel.components().next(),
+            Some(Component::Normal(first)) if matches!(first.to_str(), Some("HEAD" | "packed-refs" | "refs"))
+        )
+    })
+}
+
 /// Whether `dir` (a new directory seen in an event) belongs to the watched set.
 fn is_watchable_dir(dir: &Path, workdir: &Path) -> bool {
     dir.strip_prefix(workdir).is_ok_and(|rel| {
@@ -158,13 +178,17 @@ fn resolve_dirs(repo: &Path) -> Result<(PathBuf, PathBuf), GitError> {
 const PER_DIRECTORY: bool = cfg!(target_os = "linux");
 
 /// Starts watching `dir`; `on_change` runs (on its own thread) once per burst
-/// of relevant changes, `DEBOUNCE` after the last one. Dropping the result
-/// stops the watch.
+/// of relevant changes, `DEBOUNCE` after the last one, with whether any of them
+/// touched the history (see `touches_history`). Dropping the result stops the
+/// watch.
 ///
 /// The debounce is done here rather than by `notify-debouncer-mini`, which
 /// reports read accesses (git opening `.git/index` or a ref) as changes and
 /// would make every refresh trigger the next one.
-pub fn start(dir: &Path, on_change: impl Fn() + Send + 'static) -> Result<RepoWatcher, GitError> {
+pub fn start(
+    dir: &Path,
+    on_change: impl Fn(bool) + Send + 'static,
+) -> Result<RepoWatcher, GitError> {
     start_with(dir, PER_DIRECTORY, on_change)
 }
 
@@ -173,19 +197,25 @@ pub fn start(dir: &Path, on_change: impl Fn() + Send + 'static) -> Result<RepoWa
 fn start_with(
     dir: &Path,
     per_directory: bool,
-    on_change: impl Fn() + Send + 'static,
+    on_change: impl Fn(bool) + Send + 'static,
 ) -> Result<RepoWatcher, GitError> {
     let (workdir, git_dir) = resolve_dirs(dir)?;
-    let (tx, rx) = mpsc::channel::<Vec<PathBuf>>();
+    let (tx, rx) = mpsc::channel::<Change>();
     let (w, g) = (workdir.clone(), git_dir.clone());
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         let Ok(event) = res else { return };
         if matches!(event.kind, EventKind::Access(_)) {
             return;
         }
-        if !event.paths.iter().any(|p| is_relevant(p, &w, &g)) {
+        let relevant: Vec<_> = event
+            .paths
+            .iter()
+            .filter(|p| is_relevant(p, &w, &g))
+            .collect();
+        if relevant.is_empty() {
             return;
         }
+        let history = relevant.iter().any(|p| touches_history(p, &g));
         let new_dirs = if per_directory && matches!(event.kind, EventKind::Create(_)) {
             event
                 .paths
@@ -196,7 +226,7 @@ fn start_with(
         } else {
             vec![]
         };
-        let _ = tx.send(new_dirs);
+        let _ = tx.send(Change { new_dirs, history });
     })
     .map_err(failed)?;
     if per_directory {
@@ -241,16 +271,20 @@ fn start_with(
                 }
             }
         };
-        while let Ok(dirs) = rx.recv() {
-            add_dirs(dirs);
+        while let Ok(first) = rx.recv() {
+            let mut history = first.history;
+            add_dirs(first.new_dirs);
             loop {
                 match rx.recv_timeout(DEBOUNCE) {
-                    Ok(dirs) => add_dirs(dirs),
+                    Ok(change) => {
+                        history |= change.history;
+                        add_dirs(change.new_dirs);
+                    }
                     Err(RecvTimeoutError::Timeout) => break,
                     Err(RecvTimeoutError::Disconnected) => return,
                 }
             }
-            on_change();
+            on_change(history);
         }
     });
     Ok(RepoWatcher { _watcher: watcher })
@@ -267,10 +301,13 @@ pub fn watch_repo(
     // Held while the watcher starts, so calls are applied one at a time.
     let mut slot = state.0.lock().map_err(failed)?;
     let emitter = app.clone();
-    let payload = RepoChanged { repo };
     slot.watch(generation, || {
-        start(&dir, move || {
-            let _ = emitter.emit("repo-changed", payload.clone());
+        start(&dir, move |history| {
+            let payload = RepoChanged {
+                repo: repo.clone(),
+                history,
+            };
+            let _ = emitter.emit("repo-changed", payload);
         })
     })
 }
@@ -290,22 +327,22 @@ mod tests {
     use std::fs;
     use std::sync::mpsc::{channel, Receiver};
 
-    fn watch(repo: &TestRepo) -> (RepoWatcher, Receiver<()>) {
+    fn watch(repo: &TestRepo) -> (RepoWatcher, Receiver<bool>) {
         let (tx, rx) = channel();
-        let w = start(repo.path(), move || {
-            let _ = tx.send(());
+        let w = start(repo.path(), move |history| {
+            let _ = tx.send(history);
         })
         .expect("start");
         (w, rx)
     }
 
-    fn quiet(rx: &Receiver<()>, d: Duration) -> bool {
+    fn quiet(rx: &Receiver<bool>, d: Duration) -> bool {
         rx.recv_timeout(d).is_err()
     }
 
     /// Drains events until none arrives for a second. FSEvents (macOS) can
     /// deliver changes made just before the watch started, after it started.
-    fn settle(rx: &Receiver<()>) {
+    fn settle(rx: &Receiver<bool>) {
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
         while !quiet(rx, Duration::from_secs(1)) {
             assert!(std::time::Instant::now() < deadline, "events never settled");
@@ -366,6 +403,27 @@ mod tests {
         read_commits(repo.path(), &q).unwrap();
         read_uncommitted(repo.path()).unwrap();
         assert!(quiet(&rx, Duration::from_secs(1)), "a read emitted");
+    }
+
+    #[test]
+    fn reports_whether_the_history_changed() {
+        let repo = TestRepo::new();
+        let hash = repo.commit("c1", &[("a.txt", "a")]);
+        let (_w, rx) = watch(&repo);
+        fs::write(repo.path().join("a.txt"), "changed").unwrap();
+        assert_eq!(rx.recv_timeout(Duration::from_secs(3)), Ok(false));
+        assert!(quiet(&rx, Duration::from_millis(600)));
+        fs::write(repo.path().join(".git/index"), "x").unwrap();
+        assert_eq!(rx.recv_timeout(Duration::from_secs(3)), Ok(false));
+        assert!(quiet(&rx, Duration::from_millis(600)));
+        // A burst mixing both kinds reports a history change.
+        fs::write(repo.path().join("b.txt"), "b").unwrap();
+        fs::write(
+            repo.path().join(".git/refs/heads/other"),
+            format!("{hash}\n"),
+        )
+        .unwrap();
+        assert_eq!(rx.recv_timeout(Duration::from_secs(3)), Ok(true));
     }
 
     #[test]
@@ -438,7 +496,7 @@ mod tests {
         let repo = TestRepo::new();
         let mut slot = Slot::default();
         // The front sent watch(1), unwatch(2), watch(3); they arrive reversed.
-        slot.watch(3, || start(repo.path(), || {})).unwrap();
+        slot.watch(3, || start(repo.path(), |_| {})).unwrap();
         slot.unwatch(2);
         assert!(slot.watcher.is_some(), "stale unwatch dropped the watcher");
         slot.watch(1, || panic!("stale watch must not start"))
@@ -489,8 +547,8 @@ mod tests {
         fs::create_dir_all(repo.path().join("src/deep")).unwrap();
         fs::create_dir_all(repo.path().join("node_modules/p")).unwrap();
         let (tx, rx) = channel();
-        let _w = start_with(repo.path(), false, move || {
-            let _ = tx.send(());
+        let _w = start_with(repo.path(), false, move |history| {
+            let _ = tx.send(history);
         })
         .expect("start");
         settle(&rx);
